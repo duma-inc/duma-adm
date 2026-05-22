@@ -14,7 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { MdLock } from 'react-icons/md';
 import Image from 'next/image';
 import logo from '@/assets/logoDuma.png';
@@ -29,7 +29,7 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   Default: 'Nao foi possivel concluir o login.',
 };
 
-export default function LoginPage() {
+function LoginForm() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -135,3 +135,16 @@ export default function LoginPage() {
     </Flex>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <Flex h="100vh" align="center" justify="center" bg="#1c1c1c">
+        <Text color="gray.400">Carregando...</Text>
+      </Flex>
+    }>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
