@@ -9,6 +9,7 @@ export interface VideoItem {
   thumbnailUrl?: string;
   durationLabel: string;
   description?: string;
+  lessonId?: string | null;
 }
 
 export interface VideoItemPayload {
@@ -19,6 +20,7 @@ export interface VideoItemPayload {
   thumbnailUrl?: string;
   durationLabel: string;
   description?: string;
+  lessonId?: string | null;
 }
 
 export const videoService = {

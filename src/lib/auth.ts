@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
 
 async function refreshAccessToken(token: any) {
-  const issuer = process.env.KEYCLOAK_ISSUER_INTERNAL || process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm";
+  const issuer = process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm";
   const tokenUrl = `${issuer}/protocol/openid-connect/token`;
 
   console.log("[auth] Renovando access token via refresh_token...");
@@ -44,32 +44,12 @@ async function refreshAccessToken(token: any) {
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    {
-      id: "keycloak",
-      name: "Keycloak",
-      type: "oauth",
-      wellKnown: undefined,
-      checks: ["pkce", "state"],
-      idToken: true,
-      authorization: {
-        url: `${process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm"}/protocol/openid-connect/auth`,
-        params: { scope: "openid email profile offline_access" },
-      },
-      token: `${process.env.KEYCLOAK_ISSUER_INTERNAL || "http://keycloak:8080/realms/duma-realm"}/protocol/openid-connect/token`,
-      userinfo: `${process.env.KEYCLOAK_ISSUER_INTERNAL || "http://keycloak:8080/realms/duma-realm"}/protocol/openid-connect/userinfo`,
-      jwks_endpoint: `${process.env.KEYCLOAK_ISSUER_INTERNAL || "http://keycloak:8080/realms/duma-realm"}/protocol/openid-connect/certs`,
-      issuer: process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm",
-      profile(profile: any) {
-        return {
-          id: profile.sub,
-          name: profile.name ?? profile.preferred_username,
-          email: profile.email,
-          image: profile.picture,
-        };
-      },
+    KeycloakProvider({
       clientId: process.env.KEYCLOAK_CLIENT_ID || "duma-adm",
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET || "",
-    },
+      issuer: process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm",
+      authorization: { params: { scope: "openid email profile offline_access" } },
+    }),
   ],
   session: {
     strategy: "jwt",
@@ -117,7 +97,7 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async signOut({ token }: any) {
-      const issuer = process.env.KEYCLOAK_ISSUER_INTERNAL || process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm";
+      const issuer = process.env.KEYCLOAK_ISSUER || "http://localhost:8081/realms/duma-realm";
       const logoutUrl = `${issuer}/protocol/openid-connect/logout`;
       if (token?.idToken) {
         await fetch(

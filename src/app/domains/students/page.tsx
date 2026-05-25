@@ -22,7 +22,6 @@ import {
   Text,
   Badge,
   Icon,
-  Input,
 } from '@chakra-ui/react';
 import { MdAdd } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
@@ -30,8 +29,6 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import {
   enrollmentService,
   Enrollment,
-  EnrollmentPace,
-  EnrollmentSource,
   EnrollmentStatus,
 } from '@/services/enrollmentService';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -61,10 +58,7 @@ const INITIAL_FORM = {
   stageId: '',
   currentLessonId: '',
   planId: '',
-  source: 'WEB' as EnrollmentSource,
-  pace: 'REGULAR' as EnrollmentPace,
   status: 'ACTIVE' as EnrollmentStatus,
-  enrolledAt: '',
 };
 
 const formatEnrollmentDate = (dateValue?: string) => {
@@ -72,21 +66,6 @@ const formatEnrollmentDate = (dateValue?: string) => {
   const date = new Date(dateValue);
   if (Number.isNaN(date.getTime())) return dateValue;
   return date.toLocaleString('pt-BR');
-};
-
-const formatDateTimeLocalValue = (dateValue?: string) => {
-  if (!dateValue) return '';
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return '';
-  const timezoneOffset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
-};
-
-const parseDateTimeLocalValue = (dateValue: string) => {
-  if (!dateValue) return undefined;
-  const parsedDate = new Date(dateValue);
-  if (Number.isNaN(parsedDate.getTime())) return undefined;
-  return parsedDate.toISOString();
 };
 
 export default function EnrollmentsPage() {
@@ -154,19 +133,11 @@ export default function EnrollmentsPage() {
         stageId: enrollment.currentStageId?.toString() || enrollment.stageId?.toString() || '',
         currentLessonId: enrollment.currentLessonId || '',
         planId: enrollment.planId?.toString() || '',
-        source: enrollment.source || 'WEB',
-        pace: enrollment.pace || 'REGULAR',
         status: enrollment.status || 'ACTIVE',
-        enrolledAt: formatDateTimeLocalValue(
-          enrollment.enrolledAt || enrollment.startDate || enrollment.createdAt,
-        ),
       });
     } else {
       setEditingEnrollment(null);
-      setFormData({
-        ...INITIAL_FORM,
-        enrolledAt: formatDateTimeLocalValue(new Date().toISOString()),
-      });
+      setFormData(INITIAL_FORM);
     }
     onFormOpen();
   };
@@ -185,18 +156,20 @@ export default function EnrollmentsPage() {
         skillId: resolvedSkillId,
         currentStageId: Number(formData.stageId),
         status: formData.status,
-        source: formData.source,
-        pace: formData.pace,
+        source: 'WEB' as const,
+        pace: 'REGULAR' as const,
         currentLessonId: formData.currentLessonId,
         planId: Number(formData.planId),
-        enrolledAt: parseDateTimeLocalValue(formData.enrolledAt),
       };
 
       if (editingEnrollment) {
         await enrollmentService.update(String(editingEnrollment.id), payload);
         toast({ title: 'Matrícula atualizada com sucesso', status: 'success' });
       } else {
-        await enrollmentService.create(payload);
+        await enrollmentService.create({
+          ...payload,
+          enrolledAt: new Date().toISOString(),
+        });
         toast({ title: 'Matrícula criada com sucesso', status: 'success' });
       }
       onFormClose();
@@ -430,41 +403,10 @@ export default function EnrollmentsPage() {
                   <option value="CANCELLED">Cancelada</option>
                 </Select>
               </FormControl>
-              <HStack spacing={4} w="full" align="flex-start">
-                <FormControl isRequired>
-                  <FormLabel>Origem</FormLabel>
-                  <Select
-                    value={formData.source}
-                    onChange={(e) => setFormData({ ...formData, source: e.target.value as EnrollmentSource })}
-                  >
-                    <option value="WEB">Web</option>
-                    <option value="MOBILE">Mobile</option>
-                    <option value="API">API</option>
-                    <option value="SELF_ENROLLED">Auto matrícula</option>
-                  </Select>
-                </FormControl>
-                <FormControl isRequired>
-                  <FormLabel>Ritmo</FormLabel>
-                  <Select
-                    value={formData.pace}
-                    onChange={(e) => setFormData({ ...formData, pace: e.target.value as EnrollmentPace })}
-                  >
-                    <option value="CASUAL">Casual</option>
-                    <option value="MODERATE">Moderado</option>
-                    <option value="AGGRESSIVE">Agressivo</option>
-                    <option value="REGULAR">Regular</option>
-                  </Select>
-                </FormControl>
-              </HStack>
               <FormControl>
                 <FormLabel>Data da matrícula</FormLabel>
-                <Input
-                  type="datetime-local"
-                  value={formData.enrolledAt}
-                  onChange={(e) => setFormData({ ...formData, enrolledAt: e.target.value })}
-                />
-                <Text mt={2} fontSize="xs" color="gray.500">
-                  {formatEnrollmentDate(parseDateTimeLocalValue(formData.enrolledAt))}
+                <Text fontSize="sm" color="gray.600">
+                  {formatEnrollmentDate(editingEnrollment?.enrolledAt)}
                 </Text>
               </FormControl>
             </VStack>

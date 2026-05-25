@@ -32,6 +32,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
 import { videoCategoryService, VideoCategory } from '@/services/videoCategoryService';
 import { videoService, VideoItem } from '@/services/videoService';
+import { lessonService, Lesson } from '@/services/lessonService';
 
 const INITIAL_VIDEO_FORM = {
   title: '',
@@ -40,6 +41,7 @@ const INITIAL_VIDEO_FORM = {
   thumbnailUrl: '',
   durationLabel: '',
   description: '',
+  lessonId: '',
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -60,6 +62,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 export default function VideosPage() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [categories, setCategories] = useState<VideoCategory[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
@@ -79,13 +82,15 @@ export default function VideosPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [videosResult, categoriesResult] = await Promise.allSettled([
+      const [videosResult, categoriesResult, lessonsResult] = await Promise.allSettled([
         videoService.getAll(),
         videoCategoryService.getAll(),
+        lessonService.getAll(),
       ]);
 
       setVideos(videosResult.status === 'fulfilled' ? videosResult.value : []);
       setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value : []);
+      setLessons(lessonsResult.status === 'fulfilled' ? lessonsResult.value : []);
     } catch {
       toast({ title: 'Erro ao carregar vídeos', status: 'error' });
     }
@@ -116,6 +121,7 @@ export default function VideosPage() {
         thumbnailUrl: video.thumbnailUrl || '',
         durationLabel: video.durationLabel || '',
         description: video.description || '',
+        lessonId: video.lessonId || '',
       });
     } else {
       setEditingVideo(null);
@@ -140,6 +146,7 @@ export default function VideosPage() {
         thumbnailUrl: videoForm.thumbnailUrl.trim() || undefined,
         durationLabel: videoForm.durationLabel.trim(),
         description: videoForm.description.trim() || undefined,
+        lessonId: videoForm.lessonId || null,
       };
 
       if (editingVideo) {
@@ -250,6 +257,14 @@ export default function VideosPage() {
       key: 'durationLabel',
       header: 'Duração',
       render: (item: VideoItem) => <Text fontSize="sm">{item.durationLabel || '—'}</Text>,
+    },
+    {
+      key: 'lessonId',
+      header: 'Lição',
+      render: (item: VideoItem) => {
+        const lesson = lessons.find((l) => l.id === item.lessonId);
+        return <Text fontSize="sm">{lesson?.title || '—'}</Text>;
+      },
     },
     {
       key: 'thumbnailUrl',
@@ -396,6 +411,19 @@ export default function VideosPage() {
                   onChange={(e) => setVideoForm({ ...videoForm, description: e.target.value })}
                   rows={4}
                 />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Lição associada</FormLabel>
+                <Select
+                  value={videoForm.lessonId}
+                  onChange={(e) => setVideoForm({ ...videoForm, lessonId: e.target.value })}
+                >
+                  <option value="">Nenhuma</option>
+                  {lessons.map((lesson) => (
+                    <option key={lesson.id} value={lesson.id}>{lesson.title}</option>
+                  ))}
+                </Select>
               </FormControl>
             </VStack>
           </ModalBody>

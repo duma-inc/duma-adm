@@ -70,11 +70,9 @@ const DIFFICULTY_LABELS: Record<ExerciseDifficulty, string> = {
 const TYPE_LABELS: Record<ExerciseType, string> = {
   MULTIPLE_CHOICE: 'Múltipla Escolha',
   TRUE_FALSE: 'Verdadeiro/Falso',
-  TRANSLATION: 'Tradução',
   FILL_IN_THE_BLANK: 'Completar Lacuna',
   MATCHING: 'Correspondência',
-  SHORT_ANSWER: 'Resposta Curta',
-  ESSAY: 'Dissertativa',
+  ORDER_SEQUENCE: 'Ordenar Sequência',
 };
 
 const ORIGIN_LABELS: Record<ExerciseOrigin, string> = {
