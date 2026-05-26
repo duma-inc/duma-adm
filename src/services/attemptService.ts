@@ -9,6 +9,8 @@ export interface Attempt {
   isCorrect?: boolean;
   score?: number;
   timeSpentSeconds?: number;
+  feedback?: string;
+  correctionStatus?: 'PENDING' | 'CORRECTED' | 'NOT_APPLICABLE';
   createdAt?: string;
 }
 
@@ -20,6 +22,8 @@ export interface AttemptPayload {
   isCorrect?: boolean;
   score?: number;
   timeSpentSeconds?: number;
+  feedback?: string;
+  correctionStatus?: 'PENDING' | 'CORRECTED' | 'NOT_APPLICABLE';
 }
 
 export const attemptService = {

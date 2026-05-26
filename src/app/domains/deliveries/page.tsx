@@ -60,6 +60,8 @@ const INITIAL_FORM = {
   isCorrect: '',
   score: '',
   timeSpentSeconds: '',
+  feedback: '',
+  correctionStatus: 'NOT_APPLICABLE',
 };
 
 type AttemptRow = Attempt & {
@@ -222,6 +224,8 @@ export default function DeliveriesPage() {
           attempt.isCorrect === true ? 'true' : attempt.isCorrect === false ? 'false' : '',
         score: attempt.score?.toString() || '',
         timeSpentSeconds: attempt.timeSpentSeconds?.toString() || '',
+        feedback: attempt.feedback || '',
+        correctionStatus: attempt.correctionStatus || 'NOT_APPLICABLE',
       });
     } else {
       setEditingAttempt(null);
@@ -254,8 +258,13 @@ export default function DeliveriesPage() {
       return;
     }
 
-    if (formData.isCorrect === '' || formData.score === '' || formData.timeSpentSeconds === '') {
-      toast({ title: 'Preencha correção, nota e tempo gasto', status: 'warning' });
+    if (formData.correctionStatus !== 'PENDING' && (formData.isCorrect === '' || formData.score === '')) {
+      toast({ title: 'Preencha correção e nota', status: 'warning' });
+      return;
+    }
+
+    if (formData.timeSpentSeconds === '') {
+      toast({ title: 'Preencha o tempo gasto', status: 'warning' });
       return;
     }
 
@@ -264,9 +273,11 @@ export default function DeliveriesPage() {
       lessonId: formData.lessonId,
       exerciseId: formData.exerciseId,
       answerGiven: formData.answerGiven.trim(),
-      isCorrect: toBooleanValue(formData.isCorrect),
-      score: Number(formData.score),
+      isCorrect: formData.correctionStatus === 'PENDING' ? undefined : toBooleanValue(formData.isCorrect),
+      score: formData.correctionStatus === 'PENDING' ? undefined : Number(formData.score),
       timeSpentSeconds: Number(formData.timeSpentSeconds),
+      feedback: formData.feedback.trim() || undefined,
+      correctionStatus: (formData.correctionStatus as any) || undefined,
     };
 
     setIsLoading(true);
@@ -348,6 +359,28 @@ export default function DeliveriesPage() {
         <Text fontSize="sm" noOfLines={3} maxW="360px">
           {item.answerPreview}
         </Text>
+      ),
+    },
+    {
+      key: 'correctionStatus',
+      header: 'Status',
+      render: (item: AttemptRow) => (
+        <Badge
+          colorScheme={
+            item.correctionStatus === 'CORRECTED'
+              ? 'green'
+              : item.correctionStatus === 'PENDING'
+              ? 'orange'
+              : 'gray'
+          }
+          fontSize="xs"
+        >
+          {item.correctionStatus === 'CORRECTED'
+            ? 'Corrigido'
+            : item.correctionStatus === 'PENDING'
+            ? 'Pendente'
+            : 'N/A'}
+        </Badge>
       ),
     },
     {
@@ -516,24 +549,45 @@ export default function DeliveriesPage() {
 
               <HStack spacing={4} w="full" align="flex-start">
                 <FormControl isRequired>
+                  <FormLabel>Status da Correção</FormLabel>
+                  <Select
+                    value={formData.correctionStatus}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      setFormData({
+                        ...formData,
+                        correctionStatus: newStatus,
+                        ...(newStatus === 'PENDING' ? { isCorrect: '', score: '' } : {})
+                      });
+                    }}
+                  >
+                    <option value="PENDING">Pendente</option>
+                    <option value="CORRECTED">Corrigido</option>
+                    <option value="NOT_APPLICABLE">Não aplicável</option>
+                  </Select>
+                </FormControl>
+
+                <FormControl isRequired={formData.correctionStatus !== 'PENDING'}>
                   <FormLabel>Correção</FormLabel>
                   <Select
                     value={formData.isCorrect}
                     onChange={(e) => setFormData({ ...formData, isCorrect: e.target.value })}
                     placeholder="Selecione"
+                    isDisabled={formData.correctionStatus === 'PENDING'}
                   >
                     <option value="true">Correta</option>
                     <option value="false">Incorreta</option>
                   </Select>
                 </FormControl>
 
-                <FormControl isRequired>
+                <FormControl isRequired={formData.correctionStatus !== 'PENDING'}>
                   <FormLabel>Nota</FormLabel>
                   <Input
                     type="number"
                     value={formData.score}
                     onChange={(e) => setFormData({ ...formData, score: e.target.value })}
                     placeholder="0"
+                    isDisabled={formData.correctionStatus === 'PENDING'}
                   />
                 </FormControl>
 
@@ -547,6 +601,16 @@ export default function DeliveriesPage() {
                   />
                 </FormControl>
               </HStack>
+
+              <FormControl>
+                <FormLabel>Feedback do Tutor</FormLabel>
+                <Textarea
+                  rows={3}
+                  value={formData.feedback}
+                  onChange={(e) => setFormData({ ...formData, feedback: e.target.value })}
+                  placeholder="Observações do tutor para o aluno..."
+                />
+              </FormControl>
 
               {editingAttempt && editingAttempt.attemptId === undefined && (
                 <Text w="full" fontSize="sm" color="orange.500">

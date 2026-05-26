@@ -28,8 +28,9 @@ import {
   VStack,
   useDisclosure,
   useToast,
+  InputLeftElement,
 } from '@chakra-ui/react';
-import { MdAdd, MdFolder, MdOpenInNew } from 'react-icons/md';
+import { MdAdd, MdFolder, MdOpenInNew, MdSearch } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
@@ -57,6 +58,10 @@ export default function PodcastsPage() {
   const [episodeForm, setEpisodeForm] = useState(INITIAL_EPISODE_FORM);
   const [selectedAudioFile, setSelectedAudioFile] = useState<File | null>(null);
   const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+
+  // States for filtering
+  const [searchText, setSearchText] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
 
   const [editingCategory, setEditingCategory] = useState<PodcastCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<PodcastCategory | null>(null);
@@ -358,6 +363,16 @@ export default function PodcastsPage() {
     },
   ];
 
+  const filteredEpisodes = episodes.filter((ep) => {
+    const matchesText = !searchText ||
+      ep.title.toLowerCase().includes(searchText.toLowerCase()) ||
+      (ep.description && ep.description.toLowerCase().includes(searchText.toLowerCase()));
+    
+    const matchesCategory = selectedCategoryId === 'ALL' || String(ep.categoryId) === selectedCategoryId;
+
+    return matchesText && matchesCategory;
+  });
+
   return (
     <DashboardLayout>
       <VStack align="stretch" spacing={6}>
@@ -378,9 +393,37 @@ export default function PodcastsPage() {
           </HStack>
         </Flex>
 
+        {/* Filtros */}
+        <HStack spacing={4} align="center" flexWrap="wrap" gap={3}>
+          <InputGroup maxW="320px">
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color="gray.400" />
+            </InputLeftElement>
+            <Input
+              placeholder="Buscar por título ou descrição..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              bg="white"
+            />
+          </InputGroup>
+          <Select
+            maxW="200px"
+            value={selectedCategoryId}
+            onChange={(e) => setSelectedCategoryId(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todas as Categorias</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={String(cat.id)}>
+                {cat.name}
+              </option>
+            ))}
+          </Select>
+        </HStack>
+
         <DataTable
           columns={episodeColumns}
-          data={episodes}
+          data={filteredEpisodes}
           onEdit={(item) => handleOpenEpisode(item)}
           onDelete={(item) => {
             setEpisodeToDelete(item);

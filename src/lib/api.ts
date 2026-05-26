@@ -1,12 +1,8 @@
 import axios from 'axios';
 import { getSession } from 'next-auth/react';
 
-// Use relative path '/api' when running in production (served behind reverse proxy).
-// Fall back to NEXT_PUBLIC_API_URL or localhost during development.
 const computedBaseUrl =
-  process.env.NODE_ENV === 'production'
-    ? '/api'
-    : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export const api = axios.create({
   baseURL: computedBaseUrl,

@@ -264,7 +264,7 @@ export default function LessonBooksPage() {
         isOpen={isDeleteOpen}
         onClose={onDeleteClose}
         title="Excluir apostila"
-        message={`Deseja excluir a apostila "${lessonBookToDelete?.title || ''}"?`}
+        description={`Deseja excluir a apostila "${lessonBookToDelete?.title || ''}"?`}
         onConfirm={handleDelete}
         isLoading={isLoading}
       />

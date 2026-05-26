@@ -22,8 +22,11 @@ import {
   Text,
   Badge,
   Icon,
+  Input,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
-import { MdAdd } from 'react-icons/md';
+import { MdAdd, MdSearch } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import {
@@ -79,6 +82,12 @@ export default function EnrollmentsPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [stages, setStages] = useState<Stage[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+
+  // States for filtering
+  const [searchText, setSearchText] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState('ALL');
+  const [selectedSkillId, setSelectedSkillId] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
 
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -233,6 +242,24 @@ export default function EnrollmentsPage() {
     return '—';
   };
 
+  const filteredEnrollments = enrollments.filter((enrollment) => {
+    const user = users.find((u) => u.id === enrollment.userId);
+    const userLabel = user ? `${user.name} ${user.email}`.toLowerCase() : (enrollment.userId?.toLowerCase() || '');
+    const enrollmentUserName = enrollment.userName ? enrollment.userName.toLowerCase() : '';
+    
+    const matchesText = !searchText ||
+      userLabel.includes(searchText.toLowerCase()) ||
+      enrollmentUserName.includes(searchText.toLowerCase());
+
+    const matchesPlan = selectedPlanId === 'ALL' || String(enrollment.planId) === selectedPlanId;
+    
+    const matchesSkill = selectedSkillId === 'ALL' || String(enrollment.skillId) === selectedSkillId;
+    
+    const matchesStatus = selectedStatus === 'ALL' || enrollment.status === selectedStatus;
+
+    return matchesText && matchesPlan && matchesSkill && matchesStatus;
+  });
+
   const columns = [
     {
       key: 'userName',
@@ -282,9 +309,62 @@ export default function EnrollmentsPage() {
         </Button>
       </Flex>
 
+      {/* Filtros */}
+      <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
+        <InputGroup maxW="320px">
+          <InputLeftElement pointerEvents="none">
+            <Icon as={MdSearch} color="gray.400" />
+          </InputLeftElement>
+          <Input
+            placeholder="Buscar por nome ou email..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            bg="white"
+          />
+        </InputGroup>
+        <Select
+          maxW="180px"
+          value={selectedPlanId}
+          onChange={(e) => setSelectedPlanId(e.target.value)}
+          bg="white"
+        >
+          <option value="ALL">Todos os Planos</option>
+          {plans.map((plan) => (
+            <option key={plan.id} value={String(plan.id)}>
+              {plan.nome}
+            </option>
+          ))}
+        </Select>
+        <Select
+          maxW="180px"
+          value={selectedSkillId}
+          onChange={(e) => setSelectedSkillId(e.target.value)}
+          bg="white"
+        >
+          <option value="ALL">Todas as Skills</option>
+          {skills.map((skill) => (
+            <option key={skill.id} value={String(skill.id)}>
+              {skill.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          maxW="180px"
+          value={selectedStatus}
+          onChange={(e) => setSelectedStatus(e.target.value)}
+          bg="white"
+        >
+          <option value="ALL">Todos os Status</option>
+          <option value="ACTIVE">Ativa</option>
+          <option value="PENDING">Pendente</option>
+          <option value="INACTIVE">Inativa</option>
+          <option value="CANCELLED">Cancelada</option>
+        </Select>
+      </HStack>
+
       <DataTable
         columns={columns}
-        data={enrollments}
+        data={filteredEnrollments}
         onEdit={(e) => handleOpenForm(e)}
         onDelete={(e) => { setEnrollmentToDelete(e); onDeleteOpen(); }}
       />

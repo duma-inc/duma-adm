@@ -228,7 +228,7 @@ export default function LessonBookChaptersPage() {
         isOpen={isDeleteOpen}
         onClose={onDeleteClose}
         title="Excluir capítulo"
-        message={`Deseja excluir o capítulo "${chapterToDelete?.title || ''}"?`}
+        description={`Deseja excluir o capítulo "${chapterToDelete?.title || ''}"?`}
         onConfirm={handleDelete}
         isLoading={isLoading}
       />

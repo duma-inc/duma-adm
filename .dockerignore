@@ -6,3 +6,5 @@ build
 .gitignore
 .env*.local
 *.tsbuildinfo
+Dockerfile
+README.md

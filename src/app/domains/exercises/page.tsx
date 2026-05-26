@@ -36,8 +36,10 @@ import {
   Divider,
   Tooltip,
   Code,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
-import { MdAdd, MdDelete, MdUploadFile } from 'react-icons/md';
+import { MdAdd, MdDelete, MdUploadFile, MdSearch } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import {
@@ -70,9 +72,11 @@ const DIFFICULTY_LABELS: Record<ExerciseDifficulty, string> = {
 const TYPE_LABELS: Record<ExerciseType, string> = {
   MULTIPLE_CHOICE: 'Múltipla Escolha',
   TRUE_FALSE: 'Verdadeiro/Falso',
+  TRANSLATION: 'Tradução',
   FILL_IN_THE_BLANK: 'Completar Lacuna',
   MATCHING: 'Correspondência',
-  ORDER_SEQUENCE: 'Ordenar Sequência',
+  SHORT_ANSWER: 'Resposta Curta',
+  ESSAY: 'Redação',
 };
 
 const ORIGIN_LABELS: Record<ExerciseOrigin, string> = {
@@ -137,6 +141,14 @@ export default function ExercisesPage() {
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null);
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
+
+  // States for filtering
+  const [searchText, setSearchText] = useState('');
+  const [selectedType, setSelectedType] = useState('ALL');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('ALL');
+  const [selectedStageId, setSelectedStageId] = useState('ALL');
+  const [selectedSkillId, setSelectedSkillId] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
   const [batchJsonText, setBatchJsonText] = useState('');
   const [batchFileName, setBatchFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -370,6 +382,24 @@ export default function ExercisesPage() {
     }
   };
 
+  const filteredExercises = exercises.filter((ex) => {
+    const matchesText = !searchText ||
+      ex.description.toLowerCase().includes(searchText.toLowerCase()) ||
+      (ex.translation && ex.translation.toLowerCase().includes(searchText.toLowerCase()));
+    
+    const matchesType = selectedType === 'ALL' || ex.type === selectedType;
+    
+    const matchesDifficulty = selectedDifficulty === 'ALL' || ex.difficulty === selectedDifficulty;
+    
+    const matchesStage = selectedStageId === 'ALL' || String(ex.stageId) === selectedStageId;
+    
+    const matchesSkill = selectedSkillId === 'ALL' || String(ex.skillId) === selectedSkillId;
+    
+    const matchesStatus = filterStatus === 'ALL' || ex.status === filterStatus;
+
+    return matchesText && matchesType && matchesDifficulty && matchesStage && matchesSkill && matchesStatus;
+  });
+
   const columns = [
     {
       key: 'description',
@@ -435,9 +465,89 @@ export default function ExercisesPage() {
         </HStack>
       </Flex>
 
+      {/* Filtros */}
+      <VStack align="stretch" spacing={3} mb={6}>
+        <HStack spacing={4} align="center" flexWrap="wrap" gap={3}>
+          <InputGroup maxW="320px">
+            <InputLeftElement pointerEvents="none">
+              <Icon as={MdSearch} color="gray.400" />
+            </InputLeftElement>
+            <Input
+              placeholder="Buscar por enunciado ou tradução..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              bg="white"
+            />
+          </InputGroup>
+          <Select
+            maxW="180px"
+            value={selectedType}
+            onChange={(e) => setSelectedType(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todos os Tipos</option>
+            <option value="MULTIPLE_CHOICE">Múltipla Escolha</option>
+            <option value="TRUE_FALSE">Verdadeiro/Falso</option>
+            <option value="TRANSLATION">Tradução</option>
+            <option value="FILL_IN_THE_BLANK">Completar Lacuna</option>
+            <option value="MATCHING">Correspondência</option>
+            <option value="SHORT_ANSWER">Resposta Curta</option>
+            <option value="ESSAY">Redação</option>
+          </Select>
+          <Select
+            maxW="180px"
+            value={selectedDifficulty}
+            onChange={(e) => setSelectedDifficulty(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todas as Dificuldades</option>
+            <option value="BEGINNER">Iniciante</option>
+            <option value="INTERMEDIATE">Intermediário</option>
+            <option value="ADVANCED">Avançado</option>
+          </Select>
+          <Select
+            maxW="180px"
+            value={selectedStageId}
+            onChange={(e) => setSelectedStageId(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todas as Trilhas</option>
+            {stages.map((stage) => (
+              <option key={stage.id} value={String(stage.id)}>
+                {stage.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            maxW="180px"
+            value={selectedSkillId}
+            onChange={(e) => setSelectedSkillId(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todas as Skills</option>
+            {skills.map((skill) => (
+              <option key={skill.id} value={String(skill.id)}>
+                {skill.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            maxW="160px"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todos os Status</option>
+            <option value="ACTIVE">Ativos</option>
+            <option value="INACTIVE">Inativos</option>
+            <option value="DRAFT">Rascunhos</option>
+          </Select>
+        </HStack>
+      </VStack>
+
       <DataTable
         columns={columns}
-        data={exercises}
+        data={filteredExercises}
         onEdit={(ex) => handleOpenForm(ex)}
         onDelete={(ex) => { setExerciseToDelete(ex); onDeleteOpen(); }}
       />

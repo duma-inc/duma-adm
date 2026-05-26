@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, Flex, Button, Menu, MenuButton, MenuList, MenuItem, HStack, Icon, Text, Portal, Avatar, Spinner } from '@chakra-ui/react';
-import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle } from 'react-icons/md';
+import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications } from 'react-icons/md';
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -151,6 +151,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   </MenuItem>
                   <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdBugReport} />} onClick={() => router.push('/domains/error-reports')}>
                     Relatório de Erros
+                  </MenuItem>
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdNotifications} />} onClick={() => router.push('/domains/notifications')}>
+                    Notificações
                   </MenuItem>
                 </MenuList>
               </Portal>

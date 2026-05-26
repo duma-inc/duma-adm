@@ -20,9 +20,13 @@ import {
   Input,
   VStack,
   Select,
-  Text
+  Text,
+  HStack,
+  InputGroup,
+  InputLeftElement,
+  Icon,
 } from '@chakra-ui/react';
-import { MdAdd, MdContentCopy } from 'react-icons/md';
+import { MdAdd, MdContentCopy, MdSearch } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { adminUserService, AdminUser } from '@/services/adminUserService';
@@ -34,6 +38,10 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+
+  // States for filtering
+  const [searchText, setSearchText] = useState('');
+  const [selectedRole, setSelectedRole] = useState('ALL');
 
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -130,6 +138,17 @@ export default function UsersPage() {
     }
   };
 
+  const filteredUsers = users.filter((user) => {
+    const matchesText = !searchText ||
+      user.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchText.toLowerCase()) ||
+      (user.phone && user.phone.includes(searchText));
+    
+    const matchesRole = selectedRole === 'ALL' || user.role === selectedRole;
+
+    return matchesText && matchesRole;
+  });
+
   const columns = [
     { key: 'name', header: 'Nome' },
     { key: 'email', header: 'Email' },
@@ -145,9 +164,34 @@ export default function UsersPage() {
         </Button>
       </Flex>
 
+      {/* Filtros */}
+      <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
+        <InputGroup maxW="320px">
+          <InputLeftElement pointerEvents="none">
+            <Icon as={MdSearch} color="gray.400" />
+          </InputLeftElement>
+          <Input
+            placeholder="Buscar por nome ou email..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            bg="white"
+          />
+        </InputGroup>
+        <Select
+          maxW="180px"
+          value={selectedRole}
+          onChange={(e) => setSelectedRole(e.target.value)}
+          bg="white"
+        >
+          <option value="ALL">Todos os Papéis</option>
+          <option value="STUDENT">Estudante</option>
+          <option value="COLLABORATOR">Colaborador</option>
+        </Select>
+      </HStack>
+
       <DataTable
         columns={columns}
-        data={users}
+        data={filteredUsers}
         onEdit={(user) => handleOpenForm(user)}
         onDelete={(user) => {
           setUserToDelete(user);

@@ -193,7 +193,7 @@ export default function ErrorReportsPage() {
       </Flex>
 
       {/* Filtros */}
-      <HStack spacing={4} mb={6}>
+      <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
         <InputGroup maxW="360px">
           <InputLeftElement pointerEvents="none">
             <Icon as={MdSearch} color="gray.400" />

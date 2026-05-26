@@ -25,8 +25,11 @@ import {
   VStack,
   useDisclosure,
   useToast,
+  HStack,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
-import { MdAdd, MdArticle, MdFolder } from 'react-icons/md';
+import { MdAdd, MdArticle, MdFolder, MdSearch } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
@@ -66,6 +69,10 @@ export default function NewsPage() {
   const [editingArticle, setEditingArticle] = useState<NewsArticle | null>(null);
   const [articleToDelete, setArticleToDelete] = useState<NewsArticle | null>(null);
   const [articleForm, setArticleForm] = useState(INITIAL_ARTICLE_FORM);
+
+  // States for filtering
+  const [searchText, setSearchText] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
 
   const [editingCategory, setEditingCategory] = useState<NewsCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<NewsCategory | null>(null);
@@ -245,6 +252,17 @@ export default function NewsPage() {
     }
   };
 
+  const filteredArticles = articles.filter((art) => {
+    const matchesText = !searchText ||
+      art.headline.toLowerCase().includes(searchText.toLowerCase()) ||
+      (art.summary && art.summary.toLowerCase().includes(searchText.toLowerCase())) ||
+      (art.source && art.source.toLowerCase().includes(searchText.toLowerCase()));
+    
+    const matchesCategory = selectedCategoryId === 'ALL' || String(art.categoryId) === selectedCategoryId;
+
+    return matchesText && matchesCategory;
+  });
+
   const articleColumns = [
     {
       key: 'headline',
@@ -308,8 +326,37 @@ export default function NewsPage() {
 
         <Box>
           <Heading size="md" mb={4}>Notícias cadastradas</Heading>
+
+          {/* Filtros */}
+          <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
+            <InputGroup maxW="320px">
+              <InputLeftElement pointerEvents="none">
+                <Icon as={MdSearch} color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Buscar por headline, resumo ou fonte..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                bg="white"
+              />
+            </InputGroup>
+            <Select
+              maxW="200px"
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              bg="white"
+            >
+              <option value="ALL">Todas as Categorias</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={String(cat.id)}>
+                  {cat.name}
+                </option>
+              ))}
+            </Select>
+          </HStack>
+
           <DataTable
-            data={articles}
+            data={filteredArticles}
             columns={articleColumns}
             onEdit={handleOpenArticle}
             onDelete={(article) => {

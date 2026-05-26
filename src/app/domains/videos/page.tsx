@@ -25,8 +25,11 @@ import {
   VStack,
   useDisclosure,
   useToast,
+  HStack,
+  InputGroup,
+  InputLeftElement,
 } from '@chakra-ui/react';
-import { MdAdd, MdFolder, MdOpenInNew } from 'react-icons/md';
+import { MdAdd, MdFolder, MdOpenInNew, MdSearch } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
@@ -68,6 +71,10 @@ export default function VideosPage() {
   const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
   const [videoToDelete, setVideoToDelete] = useState<VideoItem | null>(null);
   const [videoForm, setVideoForm] = useState(INITIAL_VIDEO_FORM);
+
+  // States for filtering
+  const [searchText, setSearchText] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
 
   const [editingCategory, setEditingCategory] = useState<VideoCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<VideoCategory | null>(null);
@@ -242,6 +249,16 @@ export default function VideosPage() {
     }
   };
 
+  const filteredVideos = videos.filter((vid) => {
+    const matchesText = !searchText ||
+      vid.title.toLowerCase().includes(searchText.toLowerCase()) ||
+      (vid.description && vid.description.toLowerCase().includes(searchText.toLowerCase()));
+    
+    const matchesCategory = selectedCategoryId === 'ALL' || String(vid.categoryId) === selectedCategoryId;
+
+    return matchesText && matchesCategory;
+  });
+
   const videoColumns = [
     {
       key: 'title',
@@ -328,8 +345,37 @@ export default function VideosPage() {
 
         <Box>
           <Heading size="md" mb={4}>Vídeos cadastrados</Heading>
+
+          {/* Filtros */}
+          <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
+            <InputGroup maxW="320px">
+              <InputLeftElement pointerEvents="none">
+                <Icon as={MdSearch} color="gray.400" />
+              </InputLeftElement>
+              <Input
+                placeholder="Buscar por título ou descrição..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                bg="white"
+              />
+            </InputGroup>
+            <Select
+              maxW="200px"
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              bg="white"
+            >
+              <option value="ALL">Todas as Categorias</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={String(cat.id)}>
+                  {cat.name}
+                </option>
+              ))}
+            </Select>
+          </HStack>
+
           <DataTable
-            data={videos}
+            data={filteredVideos}
             columns={videoColumns}
             onEdit={handleOpenVideo}
             onDelete={(video) => {
@@ -462,7 +508,7 @@ export default function VideosPage() {
         isOpen={isDeleteVideoOpen}
         onClose={onDeleteVideoClose}
         title="Excluir vídeo"
-        message={`Deseja excluir o vídeo "${videoToDelete?.title || ''}"?`}
+        description={`Deseja excluir o vídeo "${videoToDelete?.title || ''}"?`}
         onConfirm={handleDeleteVideo}
         isLoading={isLoading}
       />
@@ -471,7 +517,7 @@ export default function VideosPage() {
         isOpen={isDeleteCategoryOpen}
         onClose={onDeleteCategoryClose}
         title="Excluir categoria"
-        message={`Deseja excluir a categoria "${categoryToDelete?.name || ''}"?`}
+        description={`Deseja excluir a categoria "${categoryToDelete?.name || ''}"?`}
         onConfirm={handleDeleteCategory}
         isLoading={isLoading}
       />
