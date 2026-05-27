@@ -32,6 +32,8 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { LessonBook, lessonBookService } from '@/services/lessonBookService';
+import { fileService } from '@/services/fileService';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 
 const INITIAL_FORM = {
   lessonId: '',
@@ -62,6 +64,8 @@ export default function LessonBooksPage() {
   const [editingLessonBook, setEditingLessonBook] = useState<LessonBook | null>(null);
   const [lessonBookToDelete, setLessonBookToDelete] = useState<LessonBook | null>(null);
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingMessage, setUploadingMessage] = useState('');
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -89,6 +93,8 @@ export default function LessonBooksPage() {
     lessons.find((lesson) => String(lesson.id) === String(lessonId))?.title || '—';
 
   const handleOpenForm = (lessonBook?: LessonBook) => {
+    setSelectedFile(null);
+    setUploadingMessage('');
     if (lessonBook) {
       setEditingLessonBook(lessonBook);
       setFormData({
@@ -106,18 +112,33 @@ export default function LessonBooksPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.lessonId || !formData.title.trim() || !formData.pdfUrl.trim()) {
-      toast({ title: 'Preencha lesson, título e PDF URL', status: 'warning' });
+    if (!formData.lessonId || !formData.title.trim()) {
+      toast({ title: 'Preencha lesson e título', status: 'warning' });
       return;
     }
 
     setIsLoading(true);
     try {
+      let resolvedPdfUrl = formData.pdfUrl;
+
+      if (selectedFile) {
+        setUploadingMessage('Fazendo upload do arquivo PDF...');
+        const uploadIntent = await fileService.createUploadIntent({
+          fileName: selectedFile.name,
+          contentType: selectedFile.type || 'application/pdf',
+          size: selectedFile.size,
+        });
+        await fileService.uploadToStorage(uploadIntent.uploadUrl, selectedFile);
+        const completeRes = await fileService.completeUpload(uploadIntent.id);
+        resolvedPdfUrl = completeRes.publicUrl;
+      }
+
+      setUploadingMessage('Salvando dados da apostila...');
       const payload = {
         lessonId: formData.lessonId,
         title: formData.title.trim(),
         subtitle: formData.subtitle.trim() || undefined,
-        pdfUrl: formData.pdfUrl.trim(),
+        pdfUrl: resolvedPdfUrl || undefined,
       };
 
       if (editingLessonBook) {
@@ -134,6 +155,7 @@ export default function LessonBooksPage() {
       toast({ title: getErrorMessage(error, 'Erro ao salvar apostila'), status: 'error' });
     } finally {
       setIsLoading(false);
+      setUploadingMessage('');
     }
   };
 
@@ -173,12 +195,16 @@ export default function LessonBooksPage() {
       key: 'pdfUrl',
       header: 'PDF',
       render: (item: LessonBook) => (
-        <Link href={item.pdfUrl} isExternal color="blue.500" fontSize="sm">
-          <Flex align="center" gap={1}>
-            <Icon as={MdOpenInNew} />
-            <Text>Abrir</Text>
-          </Flex>
-        </Link>
+        item.pdfUrl ? (
+          <Link href={item.pdfUrl} isExternal color="blue.500" fontSize="sm">
+            <Flex align="center" gap={1}>
+              <Icon as={MdOpenInNew} />
+              <Text>Abrir</Text>
+            </Flex>
+          </Link>
+        ) : (
+          <Text fontSize="sm" color="gray.400">—</Text>
+        )
       ),
     },
     {
@@ -243,13 +269,19 @@ export default function LessonBooksPage() {
                 <Input value={formData.subtitle} onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })} />
               </FormControl>
 
-              <FormControl isRequired>
-                <FormLabel>PDF URL</FormLabel>
+              <FormControl>
+                <FormLabel>Upload da Apostila (PDF)</FormLabel>
                 <Input
-                  value={formData.pdfUrl}
-                  onChange={(e) => setFormData({ ...formData, pdfUrl: e.target.value })}
-                  placeholder="https://example.com/apostila.pdf"
+                  type="file"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  accept=".pdf"
+                  p={1}
                 />
+                <Text mt={2} fontSize="xs" color="gray.500">
+                  {editingLessonBook?.pdfUrl
+                    ? `Arquivo atual: ${editingLessonBook.pdfUrl}. Selecione outro arquivo para substituir.`
+                    : 'Selecione o arquivo PDF para upload automático no storage Cloudflare.'}
+                </Text>
               </FormControl>
             </VStack>
           </ModalBody>
@@ -268,6 +300,7 @@ export default function LessonBooksPage() {
         onConfirm={handleDelete}
         isLoading={isLoading}
       />
+      <LoadingOverlay isOpen={!!uploadingMessage} message={uploadingMessage} />
     </DashboardLayout>
   );
 }

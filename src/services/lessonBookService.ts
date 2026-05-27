@@ -13,7 +13,7 @@ export interface LessonBook {
   lessonId: string;
   title: string;
   subtitle?: string;
-  pdfUrl: string;
+  pdfUrl?: string;
   chapters: LessonBookChapter[];
 }
 
@@ -22,7 +22,7 @@ export interface LessonBookPayload {
   lessonId: string;
   title: string;
   subtitle?: string;
-  pdfUrl: string;
+  pdfUrl?: string;
 }
 
 export const lessonBookService = {

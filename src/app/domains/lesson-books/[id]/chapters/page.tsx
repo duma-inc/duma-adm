@@ -31,6 +31,7 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
 import { lessonBookChapterService, LessonBookChapterPayload } from '@/services/lessonBookChapterService';
 import { LessonBook, LessonBookChapter, lessonBookService } from '@/services/lessonBookService';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 
 const INITIAL_FORM = {
   order: '',
@@ -64,10 +65,33 @@ export default function LessonBookChaptersPage() {
   const [editingChapter, setEditingChapter] = useState<LessonBookChapter | null>(null);
   const [chapterToDelete, setChapterToDelete] = useState<LessonBookChapter | null>(null);
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [uploadingMessage, setUploadingMessage] = useState('');
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
+
+  const handleMarkdownFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingMessage('Lendo arquivo Markdown...');
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result;
+      if (typeof content === 'string') {
+        setFormData((prev) => ({ ...prev, markdown: content }));
+        toast({ title: 'Markdown carregado com sucesso!', status: 'success', duration: 3000 });
+      }
+      setUploadingMessage('');
+    };
+    reader.onerror = () => {
+      toast({ title: 'Erro ao ler o arquivo markdown', status: 'error', duration: 3000 });
+      setUploadingMessage('');
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -211,6 +235,19 @@ export default function LessonBookChaptersPage() {
                 <Textarea value={formData.summary} onChange={(e) => setFormData({ ...formData, summary: e.target.value })} rows={3} />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Importar arquivo Markdown (.md)</FormLabel>
+                <Input
+                  type="file"
+                  accept=".md"
+                  onChange={handleMarkdownFileChange}
+                  p={1}
+                />
+                <Text mt={1} fontSize="xs" color="gray.500">
+                  Selecione um arquivo .md local para preencher automaticamente o campo Markdown abaixo.
+                </Text>
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Markdown</FormLabel>
                 <Textarea value={formData.markdown} onChange={(e) => setFormData({ ...formData, markdown: e.target.value })} rows={12} />
@@ -232,6 +269,7 @@ export default function LessonBookChaptersPage() {
         onConfirm={handleDelete}
         isLoading={isLoading}
       />
+      <LoadingOverlay isOpen={!!uploadingMessage} message={uploadingMessage} />
     </DashboardLayout>
   );
 }
