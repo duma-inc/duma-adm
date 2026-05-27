@@ -1,7 +1,10 @@
 'use client'
 
 import { ChakraProvider, extendTheme } from '@chakra-ui/react'
-import { SessionProvider } from 'next-auth/react'
+import { useEffect } from 'react'
+import { SessionProvider, useSession } from 'next-auth/react'
+import { clearApiAccessToken, setApiAccessToken } from '@/lib/api'
+import type { SessionWithAccessToken } from '@/types/auth'
 
 const theme = extendTheme({
   colors: {
@@ -28,9 +31,27 @@ const theme = extendTheme({
   },
 })
 
+function ApiAuthBridge() {
+  const { data: session, status } = useSession()
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      setApiAccessToken((session as SessionWithAccessToken | null)?.accessToken || null)
+      return
+    }
+
+    if (status === 'unauthenticated') {
+      clearApiAccessToken()
+    }
+  }, [session, status])
+
+  return null
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider>
+      <ApiAuthBridge />
       <ChakraProvider theme={theme}>{children}</ChakraProvider>
     </SessionProvider>
   )

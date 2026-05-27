@@ -1,30 +1,40 @@
 import axios from 'axios';
-import { getSession } from 'next-auth/react';
 
 const computedBaseUrl =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+let apiAccessToken: string | null = null;
 
 export const api = axios.create({
   baseURL: computedBaseUrl,
 });
 
-api.interceptors.request.use(async (config) => {
-  if (typeof window !== 'undefined') {
-    try {
-      const session: any = await getSession();
-      console.log('[api] session:', {
-        exists: !!session,
-        temAccessToken: !!session?.accessToken,
-        error: session?.error,
-        tokenPreview: session?.accessToken ? String(session.accessToken).slice(0, 30) + '...' : null,
-      });
-      if (session?.accessToken) {
-        config.headers.Authorization = `Bearer ${session.accessToken}`;
-      }
-    } catch (err) {
-      console.warn('[api] Falha ao obter sessão:', err);
+export function setApiAccessToken(token: string | null) {
+  apiAccessToken = token;
+}
+
+export function clearApiAccessToken() {
+  apiAccessToken = null;
+}
+
+api.interceptors.request.use((config) => {
+  if (apiAccessToken) {
+    if (typeof config.headers?.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${apiAccessToken}`);
+    } else {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${apiAccessToken}`,
+      };
+    }
+  } else if (config.headers) {
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Authorization');
+    } else {
+      delete (config.headers as Record<string, unknown>).Authorization;
     }
   }
+
   return config;
 });
 
