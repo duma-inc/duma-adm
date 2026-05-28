@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -35,6 +35,7 @@ import {
   InputGroup,
   InputLeftElement,
   Select,
+  TableContainer,
   Tooltip,
   Tag,
 } from '@chakra-ui/react';
@@ -42,6 +43,11 @@ import { MdSearch, MdBugReport, MdRefresh, MdAdd, MdOpenInNew } from 'react-icon
 import { reportedIssueService, ReportedIssue, ReportedIssueStatus } from '@/services/reportedIssueService';
 import { exerciseService, Exercise } from '@/services/exerciseService';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import {
+  DEFAULT_INITIAL_PAGE_SIZE,
+  DEFAULT_PAGE_SIZE_OPTIONS,
+  TablePagination,
+} from '@/components/ui/TablePagination';
 
 const STATUS_COLORS: Record<ReportedIssueStatus, string> = {
   OPEN: 'red',
@@ -81,6 +87,8 @@ export default function ErrorReportsPage() {
   // filtros
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_INITIAL_PAGE_SIZE);
 
   const toast = useToast();
 
@@ -151,11 +159,29 @@ export default function ErrorReportsPage() {
   };
 
   // Filtros na lista principal
-  const filteredExercises = exercisesWithIssues.filter(ex => {
-    const matchText = !searchText || ex.description.toLowerCase().includes(searchText.toLowerCase());
-    const matchStatus = filterStatus === 'ALL' || ex.issues.some(i => i.status === filterStatus);
-    return matchText && matchStatus;
-  });
+  const filteredExercises = useMemo(() => (
+    exercisesWithIssues.filter(ex => {
+      const matchText = !searchText || ex.description.toLowerCase().includes(searchText.toLowerCase());
+      const matchStatus = filterStatus === 'ALL' || ex.issues.some(i => i.status === filterStatus);
+      return matchText && matchStatus;
+    })
+  ), [exercisesWithIssues, filterStatus, searchText]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredExercises.length / pageSize)),
+    [filteredExercises.length, pageSize],
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedExercises = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredExercises.slice(startIndex, startIndex + pageSize);
+  }, [currentPage, filteredExercises, pageSize]);
 
   const totalOpen = exercisesWithIssues.reduce((acc, ex) => acc + ex.openCount, 0);
 
@@ -249,78 +275,94 @@ export default function ErrorReportsPage() {
         </Flex>
       ) : (
         <Box bg="white" borderRadius="lg" border="1px solid" borderColor="gray.200" overflow="hidden">
-          <Table variant="simple">
-            <Thead bg="gray.50">
-              <Tr>
-                <Th>Exercício</Th>
-                <Th w="100px" textAlign="center">Reports</Th>
-                <Th w="100px" textAlign="center">Abertos</Th>
-                <Th w="160px">Status resumido</Th>
-                <Th w="120px" textAlign="right">Ações</Th>
-              </Tr>
-            </Thead>
-            <Tbody>
-              {filteredExercises.map((ex) => (
-                <Tr key={ex.id} _hover={{ bg: 'gray.50' }}>
-                  <Td>
-                    <Text fontWeight="medium" noOfLines={2} maxW="400px" title={ex.description}>
-                      {ex.description}
-                    </Text>
-                    <Text fontSize="xs" color="gray.400" mt={0.5}>
-                      {ex.type} · {ex.difficulty} · {ex.language}
-                    </Text>
-                  </Td>
-                  <Td textAlign="center">
-                    <Badge colorScheme="blue" variant="subtle">{ex.issues.length}</Badge>
-                  </Td>
-                  <Td textAlign="center">
-                    {ex.openCount > 0 ? (
-                      <Badge colorScheme="red">{ex.openCount}</Badge>
-                    ) : (
-                      <Text fontSize="sm" color="gray.400">—</Text>
-                    )}
-                  </Td>
-                  <Td>
-                    <HStack spacing={1} flexWrap="wrap">
-                      {(['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'] as ReportedIssueStatus[]).map(s => {
-                        const count = ex.issues.filter(i => i.status === s).length;
-                        if (!count) return null;
-                        return (
-                          <Tag key={s} size="sm" colorScheme={STATUS_COLORS[s]} variant="subtle">
-                            {STATUS_LABELS[s]}: {count}
-                          </Tag>
-                        );
-                      })}
-                    </HStack>
-                  </Td>
-                  <Td textAlign="right">
-                    <HStack spacing={1} justify="flex-end">
-                      <Tooltip label="Ver reports">
-                        <IconButton
-                          aria-label="Ver reports"
-                          icon={<MdOpenInNew />}
-                          size="sm"
-                          variant="ghost"
-                          colorScheme="blue"
-                          onClick={() => handleOpenIssues(ex)}
-                        />
-                      </Tooltip>
-                      <Tooltip label="Reportar problema">
-                        <IconButton
-                          aria-label="Reportar problema"
-                          icon={<MdBugReport />}
-                          size="sm"
-                          variant="ghost"
-                          colorScheme="red"
-                          onClick={() => handleOpenReport(ex.id)}
-                        />
-                      </Tooltip>
-                    </HStack>
-                  </Td>
+          <TableContainer>
+            <Table variant="simple">
+              <Thead bg="gray.50">
+                <Tr>
+                  <Th>Exercício</Th>
+                  <Th w="100px" textAlign="center">Reports</Th>
+                  <Th w="100px" textAlign="center">Abertos</Th>
+                  <Th w="160px">Status resumido</Th>
+                  <Th w="120px" textAlign="right">Ações</Th>
                 </Tr>
-              ))}
-            </Tbody>
-          </Table>
+              </Thead>
+              <Tbody>
+                {paginatedExercises.map((ex) => (
+                  <Tr key={ex.id} _hover={{ bg: 'gray.50' }}>
+                    <Td>
+                      <Text fontWeight="medium" noOfLines={2} maxW="400px" title={ex.description}>
+                        {ex.description}
+                      </Text>
+                      <Text fontSize="xs" color="gray.400" mt={0.5}>
+                        {ex.type} · {ex.difficulty} · {ex.language}
+                      </Text>
+                    </Td>
+                    <Td textAlign="center">
+                      <Badge colorScheme="blue" variant="subtle">{ex.issues.length}</Badge>
+                    </Td>
+                    <Td textAlign="center">
+                      {ex.openCount > 0 ? (
+                        <Badge colorScheme="red">{ex.openCount}</Badge>
+                      ) : (
+                        <Text fontSize="sm" color="gray.400">—</Text>
+                      )}
+                    </Td>
+                    <Td>
+                      <HStack spacing={1} flexWrap="wrap">
+                        {(['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'] as ReportedIssueStatus[]).map(s => {
+                          const count = ex.issues.filter(i => i.status === s).length;
+                          if (!count) return null;
+                          return (
+                            <Tag key={s} size="sm" colorScheme={STATUS_COLORS[s]} variant="subtle">
+                              {STATUS_LABELS[s]}: {count}
+                            </Tag>
+                          );
+                        })}
+                      </HStack>
+                    </Td>
+                    <Td textAlign="right">
+                      <HStack spacing={1} justify="flex-end">
+                        <Tooltip label="Ver reports">
+                          <IconButton
+                            aria-label="Ver reports"
+                            icon={<MdOpenInNew />}
+                            size="sm"
+                            variant="ghost"
+                            colorScheme="blue"
+                            onClick={() => handleOpenIssues(ex)}
+                          />
+                        </Tooltip>
+                        <Tooltip label="Reportar problema">
+                          <IconButton
+                            aria-label="Reportar problema"
+                            icon={<MdBugReport />}
+                            size="sm"
+                            variant="ghost"
+                            colorScheme="red"
+                            onClick={() => handleOpenReport(ex.id)}
+                          />
+                        </Tooltip>
+                      </HStack>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </TableContainer>
+          <Box borderTop="1px solid" borderColor="gray.100" px={4} py={3}>
+            <TablePagination
+              currentPage={currentPage}
+              pageSize={pageSize}
+              pageSizeOptions={DEFAULT_PAGE_SIZE_OPTIONS}
+              totalItems={filteredExercises.length}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setCurrentPage(1);
+              }}
+            />
+          </Box>
         </Box>
       )}
 
