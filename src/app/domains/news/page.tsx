@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import axios from 'axios';
 import {
   Box,
@@ -84,6 +84,8 @@ export default function NewsPage() {
   const { isOpen: isDeleteArticleOpen, onOpen: onDeleteArticleOpen, onClose: onDeleteArticleClose } = useDisclosure();
   const { isOpen: isDeleteCategoryOpen, onOpen: onDeleteCategoryOpen, onClose: onDeleteCategoryClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -95,9 +97,9 @@ export default function NewsPage() {
       setArticles(articlesResult.status === 'fulfilled' ? articlesResult.value : []);
       setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value : []);
     } catch {
-      toast({ title: 'Erro ao carregar notícias', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar notícias', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -143,7 +145,7 @@ export default function NewsPage() {
       || !articleForm.publishedAt.trim()
       || !articleForm.content.trim()
     ) {
-      toast({ title: 'Preencha categoria, headline, resumo, fonte, data e conteúdo', status: 'warning' });
+      toastRef.current({ title: 'Preencha categoria, headline, resumo, fonte, data e conteúdo', status: 'warning' });
       return;
     }
 
@@ -161,16 +163,16 @@ export default function NewsPage() {
 
       if (editingArticle) {
         await newsService.update(String(editingArticle.id), payload);
-        toast({ title: 'Notícia atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Notícia atualizada com sucesso', status: 'success' });
       } else {
         await newsService.create(payload);
-        toast({ title: 'Notícia criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Notícia criada com sucesso', status: 'success' });
       }
 
       onArticleClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao salvar notícia'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao salvar notícia'), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -182,11 +184,11 @@ export default function NewsPage() {
     setIsLoading(true);
     try {
       await newsService.delete(String(articleToDelete.id));
-      toast({ title: 'Notícia excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Notícia excluída com sucesso', status: 'success' });
       onDeleteArticleClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao excluir notícia'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao excluir notícia'), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -208,7 +210,7 @@ export default function NewsPage() {
 
   const handleSaveCategory = async () => {
     if (!categoryName.trim() || !categorySortOrder.trim()) {
-      toast({ title: 'Nome e ordem da categoria são obrigatórios', status: 'warning' });
+      toastRef.current({ title: 'Nome e ordem da categoria são obrigatórios', status: 'warning' });
       return;
     }
 
@@ -221,16 +223,16 @@ export default function NewsPage() {
 
       if (editingCategory) {
         await newsCategoryService.update(String(editingCategory.id), payload);
-        toast({ title: 'Categoria atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria atualizada com sucesso', status: 'success' });
       } else {
         await newsCategoryService.create(payload);
-        toast({ title: 'Categoria criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria criada com sucesso', status: 'success' });
       }
 
       onCategoryClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao salvar categoria'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao salvar categoria'), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -242,11 +244,11 @@ export default function NewsPage() {
     setIsLoading(true);
     try {
       await newsCategoryService.delete(String(categoryToDelete.id));
-      toast({ title: 'Categoria excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Categoria excluída com sucesso', status: 'success' });
       onDeleteCategoryClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao excluir categoria'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao excluir categoria'), status: 'error' });
     } finally {
       setIsLoading(false);
     }

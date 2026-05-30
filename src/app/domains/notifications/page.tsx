@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Box,
   Button,
@@ -46,6 +46,8 @@ export default function NotificationsPage() {
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -57,9 +59,9 @@ export default function NotificationsPage() {
       setNotifications(notificationsRes.status === 'fulfilled' ? notificationsRes.value : []);
       setStudents(studentsRes.status === 'fulfilled' ? studentsRes.value : []);
     } catch {
-      toast({ title: 'Erro ao carregar dados', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar dados', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -72,7 +74,7 @@ export default function NotificationsPage() {
 
   const handleSendNotification = async () => {
     if (!formData.studentId || !formData.title.trim() || !formData.message.trim() || !formData.type) {
-      toast({ title: 'Por favor, preencha todos os campos obrigatórios.', status: 'warning' });
+      toastRef.current({ title: 'Por favor, preencha todos os campos obrigatórios.', status: 'warning' });
       return;
     }
 
@@ -86,11 +88,11 @@ export default function NotificationsPage() {
         referenceId: formData.referenceId.trim() || undefined,
       });
 
-      toast({ title: 'Notificação enviada com sucesso!', status: 'success' });
+      toastRef.current({ title: 'Notificação enviada com sucesso!', status: 'success' });
       onClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao enviar notificação.', status: 'error' });
+      toastRef.current({ title: 'Erro ao enviar notificação.', status: 'error' });
     } finally {
       setIsLoading(false);
     }

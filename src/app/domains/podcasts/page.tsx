@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Box,
   Button,
@@ -72,6 +72,8 @@ export default function PodcastsPage() {
   const { isOpen: isDeleteEpisodeOpen, onOpen: onDeleteEpisodeOpen, onClose: onDeleteEpisodeClose } = useDisclosure();
   const { isOpen: isDeleteCategoryOpen, onOpen: onDeleteCategoryOpen, onClose: onDeleteCategoryClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -86,9 +88,9 @@ export default function PodcastsPage() {
       setCategories(resolvedCategories);
       setEpisodes(resolvedEpisodes);
     } catch {
-      toast({ title: 'Erro ao carregar podcasts', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar podcasts', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -145,12 +147,12 @@ export default function PodcastsPage() {
 
   const handleSaveEpisode = async () => {
     if (!episodeForm.title.trim() || !episodeForm.categoryId || !episodeForm.description.trim()) {
-      toast({ title: 'Preencha título, categoria e descrição', status: 'warning' });
+      toastRef.current({ title: 'Preencha título, categoria e descrição', status: 'warning' });
       return;
     }
 
     if (!selectedAudioFile && !episodeForm.audioUrl.trim() && !editingEpisode?.audioUrl) {
-      toast({ title: 'Informe uma URL de áudio ou selecione um arquivo', status: 'warning' });
+      toastRef.current({ title: 'Informe uma URL de áudio ou selecione um arquivo', status: 'warning' });
       return;
     }
 
@@ -173,7 +175,7 @@ export default function PodcastsPage() {
       }
 
       if (!resolvedAudioUrl) {
-        toast({ title: 'A URL do áudio não pôde ser definida', status: 'warning' });
+        toastRef.current({ title: 'A URL do áudio não pôde ser definida', status: 'warning' });
         setIsLoading(false);
         return;
       }
@@ -191,16 +193,16 @@ export default function PodcastsPage() {
 
       if (editingEpisode) {
         await podcastService.update(String(editingEpisode.id), payload);
-        toast({ title: 'Episódio atualizado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Episódio atualizado com sucesso', status: 'success' });
       } else {
         await podcastService.create(payload);
-        toast({ title: 'Episódio criado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Episódio criado com sucesso', status: 'success' });
       }
 
       onEpisodeClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao salvar episódio', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar episódio', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -212,11 +214,11 @@ export default function PodcastsPage() {
     setIsLoading(true);
     try {
       await podcastService.delete(String(episodeToDelete.id));
-      toast({ title: 'Episódio excluído com sucesso', status: 'success' });
+      toastRef.current({ title: 'Episódio excluído com sucesso', status: 'success' });
       onDeleteEpisodeClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao excluir episódio', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir episódio', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -236,7 +238,7 @@ export default function PodcastsPage() {
 
   const handleSaveCategory = async () => {
     if (!categoryName.trim()) {
-      toast({ title: 'Nome da categoria é obrigatório', status: 'warning' });
+      toastRef.current({ title: 'Nome da categoria é obrigatório', status: 'warning' });
       return;
     }
 
@@ -246,16 +248,16 @@ export default function PodcastsPage() {
 
       if (editingCategory) {
         await podcastCategoryService.update(String(editingCategory.id), payload);
-        toast({ title: 'Categoria atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria atualizada com sucesso', status: 'success' });
       } else {
         await podcastCategoryService.create(payload);
-        toast({ title: 'Categoria criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria criada com sucesso', status: 'success' });
       }
 
       onCategoryClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao salvar categoria', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar categoria', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -267,11 +269,11 @@ export default function PodcastsPage() {
     setIsLoading(true);
     try {
       await podcastCategoryService.delete(String(categoryToDelete.id));
-      toast({ title: 'Categoria excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Categoria excluída com sucesso', status: 'success' });
       onDeleteCategoryClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao excluir categoria', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir categoria', status: 'error' });
     } finally {
       setIsLoading(false);
     }

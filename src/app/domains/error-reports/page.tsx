@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -24,18 +24,11 @@ import {
   Badge,
   Icon,
   Spinner,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
   IconButton,
   Input,
   InputGroup,
   InputLeftElement,
   Select,
-  TableContainer,
   Tooltip,
   Tag,
 } from '@chakra-ui/react';
@@ -43,11 +36,7 @@ import { MdSearch, MdBugReport, MdRefresh, MdAdd, MdOpenInNew } from 'react-icon
 import { reportedIssueService, ReportedIssue, ReportedIssueStatus } from '@/services/reportedIssueService';
 import { exerciseService, Exercise } from '@/services/exerciseService';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import {
-  DEFAULT_INITIAL_PAGE_SIZE,
-  DEFAULT_PAGE_SIZE_OPTIONS,
-  TablePagination,
-} from '@/components/ui/TablePagination';
+import { DataTable } from '@/components/ui/DataTable';
 
 const STATUS_COLORS: Record<ReportedIssueStatus, string> = {
   OPEN: 'red',
@@ -87,18 +76,16 @@ export default function ErrorReportsPage() {
   // filtros
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_INITIAL_PAGE_SIZE);
 
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, [toast]);
 
   const loadExercises = useCallback(async () => {
     setIsLoading(true);
     try {
       const exs = await exerciseService.getAll();
       setExercises(exs);
-      // buscar reports apenas dos exercícios visíveis (pode ser lazy por demanda)
-      // Aqui carregamos todos em paralelo
       setIsLoadingIssues(true);
       const results = await Promise.allSettled(
         exs.map(async (ex) => {
@@ -113,15 +100,15 @@ export default function ErrorReportsPage() {
       const withIssues = results
         .filter((r): r is PromiseFulfilledResult<ExerciseWithIssues> => r.status === 'fulfilled')
         .map(r => r.value)
-        .filter(ex => ex.issues.length > 0); // só mostra exercícios com pelo menos 1 report
+        .filter(ex => ex.issues.length > 0);
       setExercisesWithIssues(withIssues);
     } catch {
-      toast({ title: 'Erro ao carregar exercícios', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar exercícios', status: 'error' });
     } finally {
       setIsLoading(false);
       setIsLoadingIssues(false);
     }
-  }, [toast]);
+  }, []); // sem dependências — evita loop infinito
 
   useEffect(() => { loadExercises(); }, [loadExercises]);
 
@@ -166,22 +153,6 @@ export default function ErrorReportsPage() {
       return matchText && matchStatus;
     })
   ), [exercisesWithIssues, filterStatus, searchText]);
-
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredExercises.length / pageSize)),
-    [filteredExercises.length, pageSize],
-  );
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
-
-  const paginatedExercises = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredExercises.slice(startIndex, startIndex + pageSize);
-  }, [currentPage, filteredExercises, pageSize]);
 
   const totalOpen = exercisesWithIssues.reduce((acc, ex) => acc + ex.openCount, 0);
 
@@ -274,96 +245,84 @@ export default function ErrorReportsPage() {
           </Text>
         </Flex>
       ) : (
-        <Box bg="white" borderRadius="lg" border="1px solid" borderColor="gray.200" overflow="hidden">
-          <TableContainer>
-            <Table variant="simple">
-              <Thead bg="gray.50">
-                <Tr>
-                  <Th>Exercício</Th>
-                  <Th w="100px" textAlign="center">Reports</Th>
-                  <Th w="100px" textAlign="center">Abertos</Th>
-                  <Th w="160px">Status resumido</Th>
-                  <Th w="120px" textAlign="right">Ações</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {paginatedExercises.map((ex) => (
-                  <Tr key={ex.id} _hover={{ bg: 'gray.50' }}>
-                    <Td>
-                      <Text fontWeight="medium" noOfLines={2} maxW="400px" title={ex.description}>
-                        {ex.description}
-                      </Text>
-                      <Text fontSize="xs" color="gray.400" mt={0.5}>
-                        {ex.type} · {ex.difficulty} · {ex.language}
-                      </Text>
-                    </Td>
-                    <Td textAlign="center">
-                      <Badge colorScheme="blue" variant="subtle">{ex.issues.length}</Badge>
-                    </Td>
-                    <Td textAlign="center">
-                      {ex.openCount > 0 ? (
-                        <Badge colorScheme="red">{ex.openCount}</Badge>
-                      ) : (
-                        <Text fontSize="sm" color="gray.400">—</Text>
-                      )}
-                    </Td>
-                    <Td>
-                      <HStack spacing={1} flexWrap="wrap">
-                        {(['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'] as ReportedIssueStatus[]).map(s => {
-                          const count = ex.issues.filter(i => i.status === s).length;
-                          if (!count) return null;
-                          return (
-                            <Tag key={s} size="sm" colorScheme={STATUS_COLORS[s]} variant="subtle">
-                              {STATUS_LABELS[s]}: {count}
-                            </Tag>
-                          );
-                        })}
-                      </HStack>
-                    </Td>
-                    <Td textAlign="right">
-                      <HStack spacing={1} justify="flex-end">
-                        <Tooltip label="Ver reports">
-                          <IconButton
-                            aria-label="Ver reports"
-                            icon={<MdOpenInNew />}
-                            size="sm"
-                            variant="ghost"
-                            colorScheme="blue"
-                            onClick={() => handleOpenIssues(ex)}
-                          />
-                        </Tooltip>
-                        <Tooltip label="Reportar problema">
-                          <IconButton
-                            aria-label="Reportar problema"
-                            icon={<MdBugReport />}
-                            size="sm"
-                            variant="ghost"
-                            colorScheme="red"
-                            onClick={() => handleOpenReport(ex.id)}
-                          />
-                        </Tooltip>
-                      </HStack>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </TableContainer>
-          <Box borderTop="1px solid" borderColor="gray.100" px={4} py={3}>
-            <TablePagination
-              currentPage={currentPage}
-              pageSize={pageSize}
-              pageSizeOptions={DEFAULT_PAGE_SIZE_OPTIONS}
-              totalItems={filteredExercises.length}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(nextPageSize) => {
-                setPageSize(nextPageSize);
-                setCurrentPage(1);
-              }}
-            />
-          </Box>
-        </Box>
+        <DataTable
+          data={filteredExercises}
+          columns={[
+            {
+              key: 'description',
+              header: 'Exercício',
+              render: (ex) => (
+                <Box>
+                  <Text fontWeight="medium" noOfLines={2} maxW="400px" title={ex.description}>
+                    {ex.description}
+                  </Text>
+                  <Text fontSize="xs" color="gray.400" mt={0.5}>
+                    {ex.type} · {ex.difficulty} · {ex.language}
+                  </Text>
+                </Box>
+              ),
+            },
+            {
+              key: 'issues',
+              header: 'Reports',
+              render: (ex) => (
+                <Badge colorScheme="blue" variant="subtle">{ex.issues.length}</Badge>
+              ),
+            },
+            {
+              key: 'openCount',
+              header: 'Abertos',
+              render: (ex) => ex.openCount > 0
+                ? <Badge colorScheme="red">{ex.openCount}</Badge>
+                : <Text fontSize="sm" color="gray.400">—</Text>,
+            },
+            {
+              key: 'status',
+              header: 'Status resumido',
+              render: (ex) => (
+                <HStack spacing={1} flexWrap="wrap">
+                  {(['OPEN', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'] as ReportedIssueStatus[]).map(s => {
+                    const count = ex.issues.filter(i => i.status === s).length;
+                    if (!count) return null;
+                    return (
+                      <Tag key={s} size="sm" colorScheme={STATUS_COLORS[s]} variant="subtle">
+                        {STATUS_LABELS[s]}: {count}
+                      </Tag>
+                    );
+                  })}
+                </HStack>
+              ),
+            },
+            {
+              key: 'actions',
+              header: 'Ações',
+              render: (ex) => (
+                <HStack spacing={1} justify="flex-end">
+                  <Tooltip label="Ver reports">
+                    <IconButton
+                      aria-label="Ver reports"
+                      icon={<MdOpenInNew />}
+                      size="sm"
+                      variant="ghost"
+                      colorScheme="blue"
+                      onClick={() => handleOpenIssues(ex)}
+                    />
+                  </Tooltip>
+                  <Tooltip label="Reportar problema">
+                    <IconButton
+                      aria-label="Reportar problema"
+                      icon={<MdBugReport />}
+                      size="sm"
+                      variant="ghost"
+                      colorScheme="red"
+                      onClick={() => handleOpenReport(ex.id)}
+                    />
+                  </Tooltip>
+                </HStack>
+              ),
+            },
+          ]}
+        />
       )}
 
       {/* Modal: ver reports do exercício */}

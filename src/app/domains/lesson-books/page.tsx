@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import NextLink from 'next/link';
 import {
@@ -70,6 +70,8 @@ export default function LessonBooksPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadData = useCallback(async () => {
     try {
@@ -81,9 +83,9 @@ export default function LessonBooksPage() {
       setLessonBooks(lessonBooksResult.status === 'fulfilled' ? lessonBooksResult.value : []);
       setLessons(lessonsResult.status === 'fulfilled' ? lessonsResult.value : []);
     } catch {
-      toast({ title: 'Erro ao carregar apostilas', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar apostilas', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -113,7 +115,7 @@ export default function LessonBooksPage() {
 
   const handleSave = async () => {
     if (!formData.lessonId || !formData.title.trim()) {
-      toast({ title: 'Preencha lesson e título', status: 'warning' });
+      toastRef.current({ title: 'Preencha lesson e título', status: 'warning' });
       return;
     }
 
@@ -143,16 +145,16 @@ export default function LessonBooksPage() {
 
       if (editingLessonBook) {
         await lessonBookService.update(editingLessonBook.id, payload);
-        toast({ title: 'Apostila atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Apostila atualizada com sucesso', status: 'success' });
       } else {
         await lessonBookService.create(payload);
-        toast({ title: 'Apostila criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Apostila criada com sucesso', status: 'success' });
       }
 
       onClose();
       loadData();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao salvar apostila'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao salvar apostila'), status: 'error' });
     } finally {
       setIsLoading(false);
       setUploadingMessage('');
@@ -165,11 +167,11 @@ export default function LessonBooksPage() {
     setIsLoading(true);
     try {
       await lessonBookService.delete(lessonBookToDelete.id);
-      toast({ title: 'Apostila excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Apostila excluída com sucesso', status: 'success' });
       onDeleteClose();
       loadData();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao excluir apostila'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao excluir apostila'), status: 'error' });
     } finally {
       setIsLoading(false);
     }

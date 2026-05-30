@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   Button,
   Flex,
@@ -92,6 +92,8 @@ export default function EnrollmentsPage() {
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -110,9 +112,9 @@ export default function EnrollmentsPage() {
       setStages(stagesRes.status       === 'fulfilled' ? stagesRes.value  : []);
       setLessons(lessonsRes.status     === 'fulfilled' ? lessonsRes.value : []);
     } catch {
-      toast({ title: 'Erro ao carregar matrículas', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar matrículas', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -153,7 +155,7 @@ export default function EnrollmentsPage() {
 
   const handleSave = async () => {
     if (!formData.userId || !formData.skillId || !formData.stageId || !formData.currentLessonId || !formData.planId) {
-      toast({ title: 'Preencha todos os campos obrigatórios', status: 'warning' });
+      toastRef.current({ title: 'Preencha todos os campos obrigatórios', status: 'warning' });
       return;
     }
 
@@ -173,18 +175,18 @@ export default function EnrollmentsPage() {
 
       if (editingEnrollment) {
         await enrollmentService.update(String(editingEnrollment.id), payload);
-        toast({ title: 'Matrícula atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Matrícula atualizada com sucesso', status: 'success' });
       } else {
         await enrollmentService.create({
           ...payload,
           enrolledAt: new Date().toISOString(),
         });
-        toast({ title: 'Matrícula criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Matrícula criada com sucesso', status: 'success' });
       }
       onFormClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao salvar matrícula', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar matrícula', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -195,11 +197,11 @@ export default function EnrollmentsPage() {
     setIsLoading(true);
     try {
       await enrollmentService.delete(String(enrollmentToDelete.id));
-      toast({ title: 'Matrícula excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Matrícula excluída com sucesso', status: 'success' });
       onDeleteClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao excluir matrícula', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir matrícula', status: 'error' });
     } finally {
       setIsLoading(false);
     }

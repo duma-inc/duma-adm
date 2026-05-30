@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   Box,
   Button,
@@ -124,6 +124,8 @@ export default function CashFlowPage() {
   const [tableSearch, setTableSearch] = useState('');
 
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   // Load everything
   const loadData = useCallback(async () => {
@@ -142,11 +144,11 @@ export default function CashFlowPage() {
       setUsers(usersResult.status        === 'fulfilled' ? usersResult.value : []);
       setSummary(sumResult.status        === 'fulfilled' ? sumResult.value   : { totalEntry: 0, totalExit: 0, balance: 0 });
     } catch (err) {
-      toast({ title: 'Erro ao carregar dados do fluxo de caixa', status: 'error', duration: 4000 });
+      toastRef.current({ title: 'Erro ao carregar dados do fluxo de caixa', status: 'error', duration: 4000 });
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -232,15 +234,15 @@ export default function CashFlowPage() {
   // Launch submissions
   const handleSaveEntry = async () => {
     if (!entryForm.amount || Number(entryForm.amount) <= 0) {
-      toast({ title: 'Valor deve ser maior que zero', status: 'warning' });
+      toastRef.current({ title: 'Valor deve ser maior que zero', status: 'warning' });
       return;
     }
     if (!entryForm.categoryId) {
-      toast({ title: 'Selecione uma categoria', status: 'warning' });
+      toastRef.current({ title: 'Selecione uma categoria', status: 'warning' });
       return;
     }
     if (!entryForm.studentId) {
-      toast({ title: 'Selecione um estudante', status: 'warning' });
+      toastRef.current({ title: 'Selecione um estudante', status: 'warning' });
       return;
     }
 
@@ -257,7 +259,7 @@ export default function CashFlowPage() {
         transactionDate: entryForm.transactionDate,
       });
 
-      toast({ title: 'Entrada registrada com sucesso', status: 'success' });
+      toastRef.current({ title: 'Entrada registrada com sucesso', status: 'success' });
       onEntryClose();
       // reset form
       setEntryForm({
@@ -273,7 +275,7 @@ export default function CashFlowPage() {
       setUserSearch('');
       loadData();
     } catch (err: any) {
-      toast({ title: 'Erro ao salvar entrada', description: err?.response?.data?.message || '', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar entrada', description: err?.response?.data?.message || '', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -281,11 +283,11 @@ export default function CashFlowPage() {
 
   const handleSaveExit = async () => {
     if (!exitForm.amount || Number(exitForm.amount) <= 0) {
-      toast({ title: 'Valor deve ser maior que zero', status: 'warning' });
+      toastRef.current({ title: 'Valor deve ser maior que zero', status: 'warning' });
       return;
     }
     if (!exitForm.categoryId) {
-      toast({ title: 'Selecione uma categoria', status: 'warning' });
+      toastRef.current({ title: 'Selecione uma categoria', status: 'warning' });
       return;
     }
 
@@ -300,7 +302,7 @@ export default function CashFlowPage() {
         transactionDate: exitForm.transactionDate,
       });
 
-      toast({ title: 'Saída registrada com sucesso', status: 'success' });
+      toastRef.current({ title: 'Saída registrada com sucesso', status: 'success' });
       onExitClose();
       // reset form
       setExitForm({
@@ -313,7 +315,7 @@ export default function CashFlowPage() {
       setExitUserSearch('');
       loadData();
     } catch (err: any) {
-      toast({ title: 'Erro ao salvar saída', description: err?.response?.data?.message || '', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar saída', description: err?.response?.data?.message || '', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -321,7 +323,7 @@ export default function CashFlowPage() {
 
   const handleSaveCategory = async () => {
     if (!categoryForm.name.trim()) {
-      toast({ title: 'Nome da categoria é obrigatório', status: 'warning' });
+      toastRef.current({ title: 'Nome da categoria é obrigatório', status: 'warning' });
       return;
     }
 
@@ -331,11 +333,11 @@ export default function CashFlowPage() {
         name: categoryForm.name.trim(),
         description: categoryForm.description.trim() || undefined,
       });
-      toast({ title: 'Categoria cadastrada', status: 'success' });
+      toastRef.current({ title: 'Categoria cadastrada', status: 'success' });
       setCategoryForm({ name: '', description: '' });
       loadData();
     } catch (err: any) {
-      toast({ title: 'Erro ao criar categoria', description: err?.response?.data?.message || '', status: 'error' });
+      toastRef.current({ title: 'Erro ao criar categoria', description: err?.response?.data?.message || '', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -344,10 +346,10 @@ export default function CashFlowPage() {
   const handleDeleteCategory = async (id: number) => {
     try {
       await cashCategoryService.delete(id);
-      toast({ title: 'Categoria removida com sucesso', status: 'success' });
+      toastRef.current({ title: 'Categoria removida com sucesso', status: 'success' });
       loadData();
     } catch (err: any) {
-      toast({
+      toastRef.current({
         title: 'Erro ao remover categoria',
         description: err?.response?.data?.message || 'A categoria pode estar associada a lançamentos existentes.',
         status: 'error',
@@ -360,11 +362,11 @@ export default function CashFlowPage() {
     setIsLoading(true);
     try {
       await cashTransactionService.delete(transactionToDelete.id);
-      toast({ title: 'Lançamento excluído com sucesso', status: 'success' });
+      toastRef.current({ title: 'Lançamento excluído com sucesso', status: 'success' });
       onDeleteClose();
       loadData();
     } catch (err: any) {
-      toast({ title: 'Erro ao excluir lançamento', description: err?.response?.data?.message || '', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir lançamento', description: err?.response?.data?.message || '', status: 'error' });
     } finally {
       setIsLoading(false);
     }

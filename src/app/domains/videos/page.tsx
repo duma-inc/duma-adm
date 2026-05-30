@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import axios from 'axios';
 import {
   Box,
@@ -86,6 +86,8 @@ export default function VideosPage() {
   const { isOpen: isDeleteVideoOpen, onOpen: onDeleteVideoOpen, onClose: onDeleteVideoClose } = useDisclosure();
   const { isOpen: isDeleteCategoryOpen, onOpen: onDeleteCategoryOpen, onClose: onDeleteCategoryClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -99,9 +101,9 @@ export default function VideosPage() {
       setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value : []);
       setLessons(lessonsResult.status === 'fulfilled' ? lessonsResult.value : []);
     } catch {
-      toast({ title: 'Erro ao carregar vídeos', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar vídeos', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -140,7 +142,7 @@ export default function VideosPage() {
 
   const handleSaveVideo = async () => {
     if (!videoForm.title.trim() || !videoForm.categoryId || !videoForm.embedUrl.trim() || !videoForm.durationLabel.trim()) {
-      toast({ title: 'Preencha título, categoria, embed URL e duração', status: 'warning' });
+      toastRef.current({ title: 'Preencha título, categoria, embed URL e duração', status: 'warning' });
       return;
     }
 
@@ -158,16 +160,16 @@ export default function VideosPage() {
 
       if (editingVideo) {
         await videoService.update(String(editingVideo.id), payload);
-        toast({ title: 'Vídeo atualizado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Vídeo atualizado com sucesso', status: 'success' });
       } else {
         await videoService.create(payload);
-        toast({ title: 'Vídeo criado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Vídeo criado com sucesso', status: 'success' });
       }
 
       onVideoClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao salvar vídeo'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao salvar vídeo'), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -179,11 +181,11 @@ export default function VideosPage() {
     setIsLoading(true);
     try {
       await videoService.delete(String(videoToDelete.id));
-      toast({ title: 'Vídeo excluído com sucesso', status: 'success' });
+      toastRef.current({ title: 'Vídeo excluído com sucesso', status: 'success' });
       onDeleteVideoClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao excluir vídeo'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao excluir vídeo'), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -205,7 +207,7 @@ export default function VideosPage() {
 
   const handleSaveCategory = async () => {
     if (!categoryName.trim() || !categorySortOrder.trim()) {
-      toast({ title: 'Nome e ordem da categoria são obrigatórios', status: 'warning' });
+      toastRef.current({ title: 'Nome e ordem da categoria são obrigatórios', status: 'warning' });
       return;
     }
 
@@ -218,16 +220,16 @@ export default function VideosPage() {
 
       if (editingCategory) {
         await videoCategoryService.update(String(editingCategory.id), payload);
-        toast({ title: 'Categoria atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria atualizada com sucesso', status: 'success' });
       } else {
         await videoCategoryService.create(payload);
-        toast({ title: 'Categoria criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria criada com sucesso', status: 'success' });
       }
 
       onCategoryClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao salvar categoria'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao salvar categoria'), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -239,11 +241,11 @@ export default function VideosPage() {
     setIsLoading(true);
     try {
       await videoCategoryService.delete(String(categoryToDelete.id));
-      toast({ title: 'Categoria excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Categoria excluída com sucesso', status: 'success' });
       onDeleteCategoryClose();
       loadAll();
     } catch (error) {
-      toast({ title: getErrorMessage(error, 'Erro ao excluir categoria'), status: 'error' });
+      toastRef.current({ title: getErrorMessage(error, 'Erro ao excluir categoria'), status: 'error' });
     } finally {
       setIsLoading(false);
     }

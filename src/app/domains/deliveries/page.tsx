@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Badge,
   Box,
@@ -104,6 +104,8 @@ export default function DeliveriesPage() {
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -119,9 +121,9 @@ export default function DeliveriesPage() {
       setLessons(lessonsRes.status === 'fulfilled' ? lessonsRes.value : []);
       setUsers(usersRes.status === 'fulfilled' ? usersRes.value : []);
     } catch {
-      toast({ title: 'Erro ao carregar entregas', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar entregas', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -244,7 +246,7 @@ export default function DeliveriesPage() {
   const ensureAttemptHasId = (attempt?: AttemptRow | null) => {
     if (attempt?.attemptId !== undefined && attempt?.attemptId !== null) return true;
 
-    toast({
+    toastRef.current({
       title: 'O backend de attempts não retornou o id da entrega',
       description: 'Sem esse identificador não é possível editar ou excluir o registro.',
       status: 'warning',
@@ -254,17 +256,17 @@ export default function DeliveriesPage() {
 
   const handleSave = async () => {
     if (!formData.studentId || !formData.lessonId || !formData.exerciseId || !formData.answerGiven.trim()) {
-      toast({ title: 'Preencha aluno, lição, exercício e resposta', status: 'warning' });
+      toastRef.current({ title: 'Preencha aluno, lição, exercício e resposta', status: 'warning' });
       return;
     }
 
     if (formData.correctionStatus !== 'PENDING' && (formData.isCorrect === '' || formData.score === '')) {
-      toast({ title: 'Preencha correção e nota', status: 'warning' });
+      toastRef.current({ title: 'Preencha correção e nota', status: 'warning' });
       return;
     }
 
     if (formData.timeSpentSeconds === '') {
-      toast({ title: 'Preencha o tempo gasto', status: 'warning' });
+      toastRef.current({ title: 'Preencha o tempo gasto', status: 'warning' });
       return;
     }
 
@@ -285,16 +287,16 @@ export default function DeliveriesPage() {
       if (editingAttempt) {
         if (!ensureAttemptHasId(editingAttempt)) return;
         await attemptService.update(String(editingAttempt.attemptId), payload);
-        toast({ title: 'Entrega atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Entrega atualizada com sucesso', status: 'success' });
       } else {
         await attemptService.create(payload);
-        toast({ title: 'Entrega criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Entrega criada com sucesso', status: 'success' });
       }
 
       handleCloseForm();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao salvar entrega', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar entrega', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -310,12 +312,12 @@ export default function DeliveriesPage() {
     setIsLoading(true);
     try {
       await attemptService.delete(String(attemptToDelete.attemptId));
-      toast({ title: 'Entrega excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Entrega excluída com sucesso', status: 'success' });
       onDeleteClose();
       setAttemptToDelete(null);
       loadAll();
     } catch {
-      toast({ title: 'Erro ao excluir entrega', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir entrega', status: 'error' });
     } finally {
       setIsLoading(false);
     }

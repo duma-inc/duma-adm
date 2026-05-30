@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   Badge,
   Box,
@@ -78,6 +78,8 @@ export default function ResourcesPage() {
   const { isOpen: isDeleteResourceOpen, onOpen: onDeleteResourceOpen, onClose: onDeleteResourceClose } = useDisclosure();
   const { isOpen: isDeleteCategoryOpen, onOpen: onDeleteCategoryOpen, onClose: onDeleteCategoryClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   const loadAll = useCallback(async () => {
     try {
@@ -94,9 +96,9 @@ export default function ResourcesPage() {
       setStages(stagesResult.status           === 'fulfilled' ? stagesResult.value       : []);
       setLessons(lessonsResult.status         === 'fulfilled' ? lessonsResult.value      : []);
     } catch {
-      toast({ title: 'Erro ao carregar recursos', status: 'error' });
+      toastRef.current({ title: 'Erro ao carregar recursos', status: 'error' });
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadAll();
@@ -150,11 +152,11 @@ export default function ResourcesPage() {
 
   const handleSaveResource = async () => {
     if (!resourceForm.title || !resourceForm.skillId || !resourceForm.stageId || !resourceForm.lessonId || !resourceForm.resourceCategoryId) {
-      toast({ title: 'Preencha todos os campos obrigatórios', status: 'warning' });
+      toastRef.current({ title: 'Preencha todos os campos obrigatórios', status: 'warning' });
       return;
     }
     if (!selectedFile && !resourceForm.url.trim() && !editingResource?.url) {
-      toast({ title: 'Insira uma URL ou selecione um arquivo para upload', status: 'warning' });
+      toastRef.current({ title: 'Insira uma URL ou selecione um arquivo para upload', status: 'warning' });
       return;
     }
 
@@ -176,7 +178,7 @@ export default function ResourcesPage() {
       }
 
       if (!resolvedUrl) {
-        toast({ title: 'A URL do recurso não pôde ser definida', status: 'warning' });
+        toastRef.current({ title: 'A URL do recurso não pôde ser definida', status: 'warning' });
         setIsLoading(false);
         return;
       }
@@ -194,16 +196,16 @@ export default function ResourcesPage() {
 
       if (editingResource) {
         await resourceService.update(String(editingResource.id), payload);
-        toast({ title: 'Recurso atualizado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Recurso atualizado com sucesso', status: 'success' });
       } else {
         await resourceService.create(payload);
-        toast({ title: 'Recurso criado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Recurso criado com sucesso', status: 'success' });
       }
 
       onResourceClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao salvar recurso', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar recurso', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -214,11 +216,11 @@ export default function ResourcesPage() {
     setIsLoading(true);
     try {
       await resourceService.delete(String(resourceToDelete.id));
-      toast({ title: 'Recurso excluído com sucesso', status: 'success' });
+      toastRef.current({ title: 'Recurso excluído com sucesso', status: 'success' });
       onDeleteResourceClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao excluir recurso', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir recurso', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -237,7 +239,7 @@ export default function ResourcesPage() {
 
   const handleSaveCategory = async () => {
     if (!categoryName.trim()) {
-      toast({ title: 'Nome da categoria é obrigatório', status: 'warning' });
+      toastRef.current({ title: 'Nome da categoria é obrigatório', status: 'warning' });
       return;
     }
 
@@ -246,15 +248,15 @@ export default function ResourcesPage() {
       const payload = { name: categoryName.trim() };
       if (editingCategory) {
         await resourceCategoryService.update(String(editingCategory.id), payload);
-        toast({ title: 'Categoria atualizada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria atualizada com sucesso', status: 'success' });
       } else {
         await resourceCategoryService.create(payload);
-        toast({ title: 'Categoria criada com sucesso', status: 'success' });
+        toastRef.current({ title: 'Categoria criada com sucesso', status: 'success' });
       }
       onCategoryClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao salvar categoria', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar categoria', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -265,11 +267,11 @@ export default function ResourcesPage() {
     setIsLoading(true);
     try {
       await resourceCategoryService.delete(String(categoryToDelete.id));
-      toast({ title: 'Categoria excluída com sucesso', status: 'success' });
+      toastRef.current({ title: 'Categoria excluída com sucesso', status: 'success' });
       onDeleteCategoryClose();
       loadAll();
     } catch {
-      toast({ title: 'Erro ao excluir categoria', status: 'error' });
+      toastRef.current({ title: 'Erro ao excluir categoria', status: 'error' });
     } finally {
       setIsLoading(false);
     }

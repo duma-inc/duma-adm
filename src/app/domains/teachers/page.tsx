@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Flex,
@@ -46,6 +46,8 @@ export default function TeachersPage() {
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
+  const toastRef = useRef(toast);
+  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
 
   useEffect(() => {
     const loadData = async () => {
@@ -57,12 +59,12 @@ export default function TeachersPage() {
         setTeachers(teachersResult.status === 'fulfilled' ? teachersResult.value : []);
         setUsers(usersResult.status       === 'fulfilled' ? usersResult.value   : []);
       } catch {
-        toast({ title: 'Erro ao carregar colaboradores e usuários', status: 'error' });
+        toastRef.current({ title: 'Erro ao carregar colaboradores e usuários', status: 'error' });
       }
     };
 
     loadData();
-  }, [toast]);
+  }, []);
 
   const getUserLabel = (userId: string) => {
     const user = users.find((item) => item.id === userId);
@@ -93,7 +95,7 @@ export default function TeachersPage() {
 
   const handleSave = async () => {
     if (!formData.userId) {
-      toast({ title: 'Usuário é obrigatório', status: 'warning' });
+      toastRef.current({ title: 'Usuário é obrigatório', status: 'warning' });
       return;
     }
 
@@ -101,16 +103,16 @@ export default function TeachersPage() {
     try {
       if (editingTeacher) {
         await teacherService.update(editingTeacher.id, formData);
-        toast({ title: 'Colaborador atualizado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Colaborador atualizado com sucesso', status: 'success' });
       } else {
         await teacherService.create(formData);
-        toast({ title: 'Colaborador adicionado com sucesso', status: 'success' });
+        toastRef.current({ title: 'Colaborador adicionado com sucesso', status: 'success' });
       }
 
       onFormClose();
       await loadTeachers();
     } catch {
-      toast({ title: 'Erro ao salvar colaborador', status: 'error' });
+      toastRef.current({ title: 'Erro ao salvar colaborador', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -122,11 +124,11 @@ export default function TeachersPage() {
     setIsLoading(true);
     try {
       await teacherService.delete(teacherToDelete.id);
-      toast({ title: 'Colaborador removido com sucesso', status: 'success' });
+      toastRef.current({ title: 'Colaborador removido com sucesso', status: 'success' });
       onDeleteClose();
       await loadTeachers();
     } catch {
-      toast({ title: 'Erro ao remover colaborador', status: 'error' });
+      toastRef.current({ title: 'Erro ao remover colaborador', status: 'error' });
     } finally {
       setIsLoading(false);
     }
