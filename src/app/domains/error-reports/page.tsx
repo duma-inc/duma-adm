@@ -84,23 +84,27 @@ export default function ErrorReportsPage() {
   const loadExercises = useCallback(async () => {
     setIsLoading(true);
     try {
-      const exs = await exerciseService.getAll();
+      const [exs, allIssues] = await Promise.all([
+        exerciseService.getAll(),
+        reportedIssueService.getAll(),
+      ]);
       setExercises(exs);
-      setIsLoadingIssues(true);
-      const results = await Promise.allSettled(
-        exs.map(async (ex) => {
-          try {
-            const issues = await reportedIssueService.getByExercise(ex.id);
-            return { ...ex, issues, openCount: issues.filter(i => i.status === 'OPEN').length };
-          } catch {
-            return { ...ex, issues: [], openCount: 0 };
-          }
+
+      // agrupa os issues por exerciseId localmente — zero requisições extras
+      const issuesByExercise = new Map<string, ReportedIssue[]>();
+      for (const issue of allIssues) {
+        const list = issuesByExercise.get(issue.exerciseId) ?? [];
+        list.push(issue);
+        issuesByExercise.set(issue.exerciseId, list);
+      }
+
+      const withIssues: ExerciseWithIssues[] = exs
+        .map((ex) => {
+          const issues = issuesByExercise.get(ex.id) ?? [];
+          return { ...ex, issues, openCount: issues.filter(i => i.status === 'OPEN').length };
         })
-      );
-      const withIssues = results
-        .filter((r): r is PromiseFulfilledResult<ExerciseWithIssues> => r.status === 'fulfilled')
-        .map(r => r.value)
         .filter(ex => ex.issues.length > 0);
+
       setExercisesWithIssues(withIssues);
     } catch {
       toastRef.current({ title: 'Erro ao carregar exercícios', status: 'error' });
@@ -148,7 +152,7 @@ export default function ErrorReportsPage() {
   // Filtros na lista principal
   const filteredExercises = useMemo(() => (
     exercisesWithIssues.filter(ex => {
-      const matchText = !searchText || ex.description.toLowerCase().includes(searchText.toLowerCase());
+      const matchText = !searchText || (ex.description ?? '').toLowerCase().includes(searchText.toLowerCase());
       const matchStatus = filterStatus === 'ALL' || ex.issues.some(i => i.status === filterStatus);
       return matchText && matchStatus;
     })
@@ -408,9 +412,9 @@ export default function ErrorReportsPage() {
                 >
                   {exercises.map(ex => (
                     <option key={ex.id} value={ex.id}>
-                      {ex.description.length > 80
-                        ? ex.description.slice(0, 80) + '...'
-                        : ex.description}
+                      {(ex.description ?? '').length > 80
+                        ? (ex.description ?? '').slice(0, 80) + '...'
+                        : (ex.description ?? ex.id)}
                     </option>
                   ))}
                 </Select>

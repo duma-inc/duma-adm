@@ -12,6 +12,10 @@ export interface ReportedIssue {
 }
 
 export const reportedIssueService = {
+  getAll: async (): Promise<ReportedIssue[]> => {
+    const response = await api.get('/exercises/reportedIssue');
+    return response.data;
+  },
   getByExercise: async (exerciseId: string): Promise<ReportedIssue[]> => {
     const response = await api.get(`/exercises/${exerciseId}/reportedIssue`);
     return response.data;

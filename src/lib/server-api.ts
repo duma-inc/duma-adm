@@ -1,4 +1,10 @@
-const SERVER_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// API_INTERNAL_URL é usada no servidor (SSR/RSC) para chamar o backend direto
+// sem passar pelo nginx (que removeria o prefixo /api/).
+// Em dev, cai para localhost:8080.
+const SERVER_API_BASE_URL =
+  process.env.API_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:8080';
 
 type FetchBackendJsonOptions = {
   accessToken: string;
