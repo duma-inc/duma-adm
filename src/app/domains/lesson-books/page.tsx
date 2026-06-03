@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import axios from 'axios';
 import NextLink from 'next/link';
 import {
@@ -10,8 +10,11 @@ import {
   FormControl,
   FormLabel,
   Heading,
+  HStack,
   Icon,
   Input,
+  InputGroup,
+  InputLeftElement,
   Link,
   Modal,
   ModalBody,
@@ -26,7 +29,7 @@ import {
   useDisclosure,
   useToast,
 } from '@chakra-ui/react';
-import { MdAdd, MdOpenInNew } from 'react-icons/md';
+import { MdAdd, MdOpenInNew, MdSearch } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
@@ -34,6 +37,7 @@ import { lessonService, Lesson } from '@/services/lessonService';
 import { LessonBook, lessonBookService } from '@/services/lessonBookService';
 import { fileService } from '@/services/fileService';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { stageService, Stage } from '@/services/stageService';
 
 const INITIAL_FORM = {
   lessonId: '',
@@ -60,28 +64,33 @@ function getErrorMessage(error: unknown, fallback: string) {
 export default function LessonBooksPage() {
   const [lessonBooks, setLessonBooks] = useState<LessonBook[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editingLessonBook, setEditingLessonBook] = useState<LessonBook | null>(null);
   const [lessonBookToDelete, setLessonBookToDelete] = useState<LessonBook | null>(null);
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingMessage, setUploadingMessage] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [selectedStageId, setSelectedStageId] = useState('ALL');
 
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const toast = useToast();
   const toastRef = useRef(toast);
-  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
+  useEffect(() => { toastRef.current = toast; }, [toast]);  // toastRef evita loop infinito
 
   const loadData = useCallback(async () => {
     try {
-      const [lessonBooksResult, lessonsResult] = await Promise.allSettled([
+      const [lessonBooksResult, lessonsResult, stagesResult] = await Promise.allSettled([
         lessonBookService.getAll(),
         lessonService.getAll(),
+        stageService.getAll(),
       ]);
 
       setLessonBooks(lessonBooksResult.status === 'fulfilled' ? lessonBooksResult.value : []);
       setLessons(lessonsResult.status === 'fulfilled' ? lessonsResult.value : []);
+      setStages(stagesResult.status === 'fulfilled' ? stagesResult.value : []);
     } catch {
       toastRef.current({ title: 'Erro ao carregar apostilas', status: 'error' });
     }
@@ -93,6 +102,15 @@ export default function LessonBooksPage() {
 
   const getLessonTitle = (lessonId: string) =>
     lessons.find((lesson) => String(lesson.id) === String(lessonId))?.title || '—';
+
+  const getLessonById = useCallback((lessonId: string) => (
+    lessons.find((lesson) => String(lesson.id) === String(lessonId))
+  ), [lessons]);
+
+  const getStageName = useCallback((stageId?: string) => {
+    if (!stageId) return '—';
+    return stages.find((stage) => String(stage.id) === String(stageId))?.name || '—';
+  }, [stages]);
 
   const handleOpenForm = (lessonBook?: LessonBook) => {
     setSelectedFile(null);
@@ -189,6 +207,11 @@ export default function LessonBooksPage() {
       render: (item: LessonBook) => <Text fontSize="sm">{getLessonTitle(item.lessonId)}</Text>,
     },
     {
+      key: 'stage',
+      header: 'Stage',
+      render: (item: LessonBook) => <Text fontSize="sm">{getStageName(getLessonById(item.lessonId)?.stageId)}</Text>,
+    },
+    {
       key: 'chapters',
       header: 'Capítulos',
       render: (item: LessonBook) => <Text fontSize="sm">{item.chapters?.length ?? 0}</Text>,
@@ -220,6 +243,20 @@ export default function LessonBooksPage() {
     },
   ];
 
+  const filteredLessonBooks = useMemo(() => {
+    return lessonBooks.filter((lessonBook) => {
+      const lesson = getLessonById(lessonBook.lessonId);
+      const normalizedSearch = searchText.trim().toLowerCase();
+      const matchesText = !normalizedSearch
+        || lessonBook.title.toLowerCase().includes(normalizedSearch)
+        || lesson?.title?.toLowerCase().includes(normalizedSearch);
+      const matchesStage = selectedStageId === 'ALL'
+        || String(lesson?.stageId || '') === selectedStageId;
+
+      return matchesText && matchesStage;
+    });
+  }, [getLessonById, lessonBooks, searchText, selectedStageId]);
+
   return (
     <DashboardLayout>
       <Flex justify="space-between" align="center" mb={6}>
@@ -232,8 +269,35 @@ export default function LessonBooksPage() {
         </Button>
       </Flex>
 
+      <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
+        <InputGroup maxW="360px">
+          <InputLeftElement pointerEvents="none">
+            <Icon as={MdSearch} color="gray.400" />
+          </InputLeftElement>
+          <Input
+            placeholder="Buscar por título ou lesson..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            bg="white"
+          />
+        </InputGroup>
+        <Select
+          maxW="240px"
+          value={selectedStageId}
+          onChange={(e) => setSelectedStageId(e.target.value)}
+          bg="white"
+        >
+          <option value="ALL">Todos os stages</option>
+          {stages.map((stage) => (
+            <option key={stage.id} value={String(stage.id)}>
+              {stage.name}
+            </option>
+          ))}
+        </Select>
+      </HStack>
+
       <DataTable
-        data={lessonBooks}
+        data={filteredLessonBooks}
         columns={columns}
         onEdit={handleOpenForm}
         onDelete={(lessonBook) => {
