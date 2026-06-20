@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duma-adm
+  namespace: duma
+  labels:
+    app: duma-adm
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: duma-adm
+  template:
+    metadata:
+      labels:
+        app: duma-adm
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: srv1158721
+      imagePullSecrets:
+        - name: ghcr-credentials
+      containers:
+        - name: duma-adm
+          image: ghcr.io/matheusffalbuquerque/duma-adm:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: duma-adm-config
+            - secretRef:
+                name: duma-adm-secrets
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
