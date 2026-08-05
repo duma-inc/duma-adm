@@ -34,3 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Manifests de Secret do k8s com valores reais (use secret.example como modelo)
+k8s/secret.yml
+k8s/secret.yaml
