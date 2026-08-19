@@ -16,6 +16,9 @@ export interface Meeting {
   lessonId: number | string | null;
   planId: number | null;
   scheduledStart: string;
+  /** Preenchido apenas para colaboradores/tutores; para aluno vem null. */
+  attendanceKeyword?: string | null;
+  hasAttendanceKeyword?: boolean;
   meetingUrl?: string;
   recordingUrl?: string;
   status: MeetingStatus;

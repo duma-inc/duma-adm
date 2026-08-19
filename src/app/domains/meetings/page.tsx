@@ -7,6 +7,7 @@ import {
   Button,
   Divider,
   Flex,
+  Code,
   FormControl,
   FormHelperText,
   FormLabel,
@@ -21,7 +22,15 @@ import {
   ModalFooter,
   ModalHeader,
   ModalOverlay,
+  IconButton,
   Select,
+  Spinner,
+  Table,
+  Tbody,
+  Td,
+  Th,
+  Thead,
+  Tr,
   Tag,
   TagCloseButton,
   TagLabel,
@@ -31,7 +40,7 @@ import {
   useToast,
   VStack,
 } from '@chakra-ui/react';
-import { MdAdd, MdClose, MdFilterList, MdGroups } from 'react-icons/md';
+import { MdAdd, MdClose, MdDelete, MdFilterList, MdGroups, MdPeople } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
@@ -40,6 +49,7 @@ import { userService, User } from '@/services/userService';
 import { skillService, Skill } from '@/services/skillService';
 import { stageService, Stage } from '@/services/stageService';
 import { teacherService, Teacher } from '@/services/teacherService';
+import { attendanceService, Attendance } from '@/services/attendanceService';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { planService, Plan } from '@/services/planService';
 
@@ -75,6 +85,7 @@ type MeetingFormState = {
   scheduledStart: string;
   meetingUrl: string;
   recordingUrl: string;
+  attendanceKeyword: string;
   status: MeetingStatus;
 };
 
@@ -90,6 +101,7 @@ const INITIAL_FORM: MeetingFormState = {
   scheduledStart: '',
   meetingUrl: '',
   recordingUrl: '',
+  attendanceKeyword: '',
   status: 'SCHEDULED',
 };
 
@@ -98,6 +110,8 @@ type FilterState = {
   stageId: string;
   lessonId: string;
   planId: string;
+  status: string;
+  date: string;
 };
 
 type BatchFrequency = 'DAILY' | 'WEEKLY';
@@ -113,6 +127,9 @@ const INITIAL_FILTERS: FilterState = {
   stageId: '',
   lessonId: '',
   planId: '',
+  // Por padrao a tela mostra so os encontros ainda agendados.
+  status: 'SCHEDULED',
+  date: '',
 };
 
 const INITIAL_BATCH_FORM: BatchFormState = {
@@ -136,6 +153,9 @@ export default function MeetingsPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [attendanceMeeting, setAttendanceMeeting] = useState<MeetingRow | null>(null);
+  const [attendances, setAttendances] = useState<Attendance[]>([]);
+  const [isLoadingAttendances, setIsLoadingAttendances] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<MeetingRow | null>(null);
   const [meetingToDelete, setMeetingToDelete] = useState<MeetingRow | null>(null);
@@ -146,6 +166,7 @@ export default function MeetingsPage() {
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isBatchOpen, onOpen: onBatchOpen, onClose: onBatchClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
+  const { isOpen: isAttendanceOpen, onOpen: onAttendanceOpen, onClose: onAttendanceClose } = useDisclosure();
   const toast = useToast();
 
   const loadData = async () => {
@@ -181,14 +202,19 @@ export default function MeetingsPage() {
     loadData();
   }, []);
 
-  const hasActiveFilters = !!filters.skillId || !!filters.stageId || !!filters.lessonId || !!filters.planId;
+  const hasActiveFilters =
+    !!filters.skillId || !!filters.stageId || !!filters.lessonId || !!filters.planId
+    || filters.status !== 'ALL' || !!filters.date;
 
   const filteredMeetings = meetings.filter((meeting) => {
     const matchSkill = !filters.skillId || String(meeting.skillId) === filters.skillId;
     const matchStage = !filters.stageId || String(meeting.stageId) === filters.stageId;
     const matchLesson = !filters.lessonId || String(meeting.lessonId) === filters.lessonId;
     const matchPlan = !filters.planId || String(meeting.planId) === filters.planId;
-    return matchSkill && matchStage && matchLesson && matchPlan;
+    const matchStatus = filters.status === 'ALL' || meeting.status === filters.status;
+    // scheduledStart e LocalDateTime sem timezone: comparar a string crua evita deslocamento de fuso.
+    const matchDate = !filters.date || (meeting.scheduledStart || '').slice(0, 10) === filters.date;
+    return matchSkill && matchStage && matchLesson && matchPlan && matchStatus && matchDate;
   });
 
   const getUserLabel = (userId: string) => {
@@ -262,6 +288,7 @@ export default function MeetingsPage() {
     scheduledStart: data.scheduledStart,
     meetingUrl: data.meetingUrl.trim() || undefined,
     recordingUrl: data.recordingUrl.trim() || undefined,
+    attendanceKeyword: data.attendanceKeyword.trim() || undefined,
     status: data.status,
   });
 
@@ -302,6 +329,7 @@ export default function MeetingsPage() {
         scheduledStart: formatDateTimeForInput(meeting.scheduledStart),
         meetingUrl: meeting.meetingUrl || '',
         recordingUrl: meeting.recordingUrl || '',
+        attendanceKeyword: meeting.attendanceKeyword || '',
         status: meeting.status || 'SCHEDULED',
       });
     } else {
@@ -362,6 +390,41 @@ export default function MeetingsPage() {
       toast({ title: 'Erro ao excluir encontro', status: 'error' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadAttendances = async (meetingId: string) => {
+    setIsLoadingAttendances(true);
+    try {
+      setAttendances(await attendanceService.getByMeetingId(meetingId));
+    } catch {
+      setAttendances([]);
+      toast({ title: 'Erro ao carregar presenças', status: 'error' });
+    } finally {
+      setIsLoadingAttendances(false);
+    }
+  };
+
+  const handleOpenAttendances = (meeting: MeetingRow) => {
+    const meetingId = resolveMeetingId(meeting);
+    if (!meetingId) {
+      toast({ title: 'Meeting sem identificador', status: 'error' });
+      return;
+    }
+    setAttendanceMeeting(meeting);
+    setAttendances([]);
+    onAttendanceOpen();
+    loadAttendances(String(meetingId));
+  };
+
+  const handleDeleteAttendance = async (attendance: Attendance) => {
+    const meetingId = attendanceMeeting ? resolveMeetingId(attendanceMeeting) : undefined;
+    try {
+      await attendanceService.delete(attendance.id);
+      toast({ title: 'Presença removida', status: 'success' });
+      if (meetingId) await loadAttendances(String(meetingId));
+    } catch {
+      toast({ title: 'Erro ao remover presença', status: 'error' });
     }
   };
 
@@ -431,6 +494,14 @@ export default function MeetingsPage() {
     { key: 'stageId', header: 'Stage', render: (item: Meeting) => getStageLabel(item.stageId) },
     { key: 'lessonId', header: 'Lesson', render: (item: Meeting) => getLessonLabel(item.lessonId) },
     { key: 'planId', header: 'Plan', render: (item: Meeting) => getPlanLabel(item.planId) },
+    {
+      key: 'attendanceKeyword',
+      header: 'Palavra-chave',
+      render: (item: Meeting) =>
+        item.attendanceKeyword
+          ? <Code fontSize="xs">{item.attendanceKeyword}</Code>
+          : <Text fontSize="sm" color="gray.400">—</Text>,
+    },
     { key: 'meetingUrl', header: 'Meeting URL', render: (item: Meeting) => item.meetingUrl || '—' },
     { key: 'recordingUrl', header: 'Recording URL', render: (item: Meeting) => item.recordingUrl || '—' },
     { key: 'scheduledStart', header: 'Início', render: (item: Meeting) => formatDateTime(item.scheduledStart) },
@@ -615,6 +686,20 @@ export default function MeetingsPage() {
           placeholder="https://example.com/recording/1"
         />
       </FormControl>
+
+      <FormControl>
+        <FormLabel>Palavra-chave de presença</FormLabel>
+        <Input
+          value={data.attendanceKeyword}
+          onChange={(e) => onChange('attendanceKeyword', e.target.value)}
+          placeholder="Ex: BANANA2026"
+          maxLength={60}
+        />
+        <FormHelperText>
+          Exiba esta palavra durante o encontro. O aluno digita no app para registrar presença,
+          e só funciona enquanto o encontro estiver como &quot;Em andamento&quot;. Deixe vazio para não usar check-in.
+        </FormHelperText>
+      </FormControl>
     </VStack>
   );
 
@@ -699,6 +784,28 @@ export default function MeetingsPage() {
               </option>
             ))}
           </Select>
+
+          <Select
+            size="sm"
+            maxW="220px"
+            value={filters.status}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          >
+            <option value="ALL">Todos os status</option>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+
+          <Input
+            size="sm"
+            type="date"
+            maxW="180px"
+            value={filters.date}
+            onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+          />
         </HStack>
 
         {hasActiveFilters && (
@@ -727,6 +834,18 @@ export default function MeetingsPage() {
                 <TagCloseButton onClick={() => setFilters({ ...filters, planId: '' })} />
               </Tag>
             )}
+            {filters.status !== 'ALL' && (
+              <Tag size="sm" colorScheme="purple" borderRadius="full">
+                <TagLabel>Status: {STATUS_LABELS[filters.status as MeetingStatus]}</TagLabel>
+                <TagCloseButton onClick={() => setFilters({ ...filters, status: 'ALL' })} />
+              </Tag>
+            )}
+            {filters.date && (
+              <Tag size="sm" colorScheme="purple" borderRadius="full">
+                <TagLabel>Data: {filters.date.split('-').reverse().join('/')}</TagLabel>
+                <TagCloseButton onClick={() => setFilters({ ...filters, date: '' })} />
+              </Tag>
+            )}
           </HStack>
         )}
       </Box>
@@ -734,6 +853,16 @@ export default function MeetingsPage() {
       <DataTable
         columns={columns}
         data={filteredMeetings}
+        actions={(meeting) => (
+          <IconButton
+            aria-label="Ver presentes"
+            icon={<MdPeople />}
+            size="sm"
+            colorScheme="green"
+            variant="ghost"
+            onClick={() => handleOpenAttendances(meeting)}
+          />
+        )}
         onEdit={(meeting) => handleOpenForm(meeting)}
         onDelete={(meeting) => {
           setMeetingToDelete(meeting);
@@ -803,6 +932,60 @@ export default function MeetingsPage() {
             <Button variant="ghost" mr={3} onClick={onBatchClose} isDisabled={isLoading}>Cancelar</Button>
             <Button colorScheme="primary" onClick={handleSaveBatch} isLoading={isLoading}>Criar lote</Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={isAttendanceOpen} onClose={onAttendanceClose} size="xl" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>
+            Presentes
+            {attendanceMeeting && (
+              <Text fontSize="sm" fontWeight="normal" color="gray.500" mt={1}>
+                {attendanceMeeting.title}
+              </Text>
+            )}
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            {isLoadingAttendances ? (
+              <Flex justify="center" py={8}>
+                <Spinner color="primary.500" />
+              </Flex>
+            ) : attendances.length === 0 ? (
+              <Text color="gray.500" textAlign="center" py={8}>
+                Nenhuma presença registrada neste encontro.
+              </Text>
+            ) : (
+              <Table variant="simple" size="sm">
+                <Thead bg="gray.50">
+                  <Tr>
+                    <Th>Aluno</Th>
+                    <Th>Check-in</Th>
+                    <Th width="60px" textAlign="right">Ações</Th>
+                  </Tr>
+                </Thead>
+                <Tbody>
+                  {attendances.map((attendance) => (
+                    <Tr key={attendance.id}>
+                      <Td>{getUserLabel(attendance.studentId)}</Td>
+                      <Td>{attendance.checkedAt ? formatDateTime(attendance.checkedAt) : '—'}</Td>
+                      <Td textAlign="right">
+                        <IconButton
+                          aria-label="Remover presença"
+                          icon={<MdDelete />}
+                          size="sm"
+                          colorScheme="red"
+                          variant="ghost"
+                          onClick={() => handleDeleteAttendance(attendance)}
+                        />
+                      </Td>
+                    </Tr>
+                  ))}
+                </Tbody>
+              </Table>
+            )}
+          </ModalBody>
         </ModalContent>
       </Modal>
 

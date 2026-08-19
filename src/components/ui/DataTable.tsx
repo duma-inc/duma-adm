@@ -29,6 +29,8 @@ interface DataTableProps<T> {
   data: T[];
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
+  /** Acoes extras renderizadas antes de editar/excluir na coluna de Acoes. */
+  actions?: (item: T) => ReactNode;
   enablePagination?: boolean;
   initialPageSize?: number;
   pageSizeOptions?: number[];
@@ -39,6 +41,7 @@ export function DataTable<T extends { id: number | string }>({
   data,
   onEdit,
   onDelete,
+  actions,
   enablePagination = true,
   initialPageSize = DEFAULT_INITIAL_PAGE_SIZE,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
@@ -68,7 +71,8 @@ export function DataTable<T extends { id: number | string }>({
     return data.slice(startIndex, startIndex + pageSize);
   }, [currentPage, data, enablePagination, pageSize]);
 
-  const actionsColumnCount = onEdit || onDelete ? 1 : 0;
+  const hasActionsColumn = Boolean(onEdit || onDelete || actions);
+  const actionsColumnCount = hasActionsColumn ? 1 : 0;
 
   return (
     <Box bg="white" borderRadius="md" boxShadow="sm" overflow="hidden">
@@ -79,7 +83,7 @@ export function DataTable<T extends { id: number | string }>({
               {columns.map((col, index) => (
                 <Th key={index}>{col.header}</Th>
               ))}
-              {(onEdit || onDelete) && <Th width="100px" textAlign="right">Ações</Th>}
+              {hasActionsColumn && <Th width="140px" textAlign="right">Ações</Th>}
             </Tr>
           </Thead>
           <Tbody>
@@ -90,9 +94,10 @@ export function DataTable<T extends { id: number | string }>({
                     {col.render ? col.render(item) : (item[col.key as keyof T] as ReactNode)}
                   </Td>
                 ))}
-                {(onEdit || onDelete) && (
+                {hasActionsColumn && (
                   <Td textAlign="right">
                     <HStack spacing={2} justify="flex-end">
+                      {actions?.(item)}
                       {onEdit && (
                         <IconButton
                           aria-label="Edit"
