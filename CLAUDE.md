@@ -44,7 +44,7 @@ Every backend resource has a service module in [src/services/](src/services/) (e
 
 ### Pages: domains
 
-Admin features live under [src/app/domains/](src/app/domains/), one folder per resource (exercises, students, teachers, lessons, modules, skills, stages, plans, news, podcasts, videos, resources, meetings, deliveries, cashflow, error-reports, notifications, etc.). These pages are almost all `'use client'`, manage state with React hooks, and call the axios services directly. The dashboard home ([src/app/page.tsx](src/app/page.tsx)) is the main Server Component exception, fetching its summary via `fetchBackendJson`.
+Admin features live under [src/app/domains/](src/app/domains/), one folder per resource (exercises, students, teachers, lessons, lesson-books, modules, skills, stages, plans, news, podcasts, videos, resources, meetings, deliveries, cashflow, error-reports, notifications, users, etc.). These pages are almost all `'use client'`, manage state with React hooks, and call the axios services directly. The dashboard home ([src/app/page.tsx](src/app/page.tsx)) is the main Server Component exception, fetching its summary via `fetchBackendJson`.
 
 ### Auth flow
 
