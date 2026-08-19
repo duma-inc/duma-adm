@@ -12,9 +12,9 @@ export interface Meeting {
   teacherId: string;
   meetingType: MeetingType;
   skillId: number;
-  stageId: number;
-  lessonId: number | string;
-  planId: number;
+  stageId: number | null;
+  lessonId: number | string | null;
+  planId: number | null;
   scheduledStart: string;
   meetingUrl?: string;
   recordingUrl?: string;

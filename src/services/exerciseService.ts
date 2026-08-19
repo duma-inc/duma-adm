@@ -7,8 +7,10 @@ export type ExerciseType =
   | 'FILL_IN_THE_BLANK'
   | 'MATCHING'
   | 'SHORT_ANSWER'
-  | 'ESSAY';
-export type ExerciseDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
+  | 'ESSAY'
+  | 'SPEAKING'
+  | 'LISTENING';
+export type ExerciseDifficulty = 'EASY' | 'MODERATE' | 'HARD';
 export type ExerciseLanguage = string; // ex: "en", "pt", "pt-BR", "en-US"
 export type ExerciseOrigin = 'LEVEL_TEST' | 'LESSON' | 'PRACTICE' | 'BASE';
 export type ExerciseStatus = 'ACTIVE' | 'INACTIVE' | 'DRAFT';

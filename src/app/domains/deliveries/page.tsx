@@ -38,6 +38,8 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { attemptService, Attempt, AttemptPayload } from '@/services/attemptService';
 import { exerciseService, Exercise, ExerciseType } from '@/services/exerciseService';
 import { lessonService, Lesson } from '@/services/lessonService';
+import { skillService, Skill } from '@/services/skillService';
+import { stageService, Stage } from '@/services/stageService';
 import { userService, User } from '@/services/userService';
 
 const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
@@ -48,6 +50,8 @@ const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
   MATCHING: 'Associação',
   SHORT_ANSWER: 'Resposta curta',
   ESSAY: 'Dissertativa',
+  SPEAKING: 'Fala',
+  LISTENING: 'Escuta',
 };
 
 const DEFAULT_FILTER_TYPES: ExerciseType[] = ['SHORT_ANSWER', 'ESSAY'];
@@ -94,7 +98,11 @@ export default function DeliveriesPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<ExerciseType[]>(DEFAULT_FILTER_TYPES);
+  const [selectedSkillId, setSelectedSkillId] = useState('ALL');
+  const [selectedStageId, setSelectedStageId] = useState('ALL');
   const [search, setSearch] = useState('');
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [editingAttempt, setEditingAttempt] = useState<AttemptRow | null>(null);
@@ -109,17 +117,21 @@ export default function DeliveriesPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [attemptsRes, exercisesRes, lessonsRes, usersRes] = await Promise.allSettled([
+      const [attemptsRes, exercisesRes, lessonsRes, usersRes, skillsRes, stagesRes] = await Promise.allSettled([
         attemptService.getAll(),
         exerciseService.getAll(),
         lessonService.getAll(),
         userService.getAll(),
+        skillService.getAll(),
+        stageService.getAll(),
       ]);
 
       setAttempts(attemptsRes.status === 'fulfilled' ? attemptsRes.value : []);
       setExercises(exercisesRes.status === 'fulfilled' ? exercisesRes.value : []);
       setLessons(lessonsRes.status === 'fulfilled' ? lessonsRes.value : []);
       setUsers(usersRes.status === 'fulfilled' ? usersRes.value : []);
+      setSkills(skillsRes.status === 'fulfilled' ? skillsRes.value : []);
+      setStages(stagesRes.status === 'fulfilled' ? stagesRes.value : []);
     } catch {
       toastRef.current({ title: 'Erro ao carregar entregas', status: 'error' });
     }
@@ -169,6 +181,18 @@ export default function DeliveriesPage() {
     });
   }, [attempts, exerciseById, lessonById, userById]);
 
+  // O exercicio carrega skill/stage; quando faltam, a licao da entrega serve de fallback.
+  const resolveScope = useCallback(
+    (exercise?: Exercise, lessonId?: string) => {
+      const lesson = lessonId ? lessonById.get(lessonId) : undefined;
+      return {
+        skillId: exercise?.skillId ?? lesson?.skillId,
+        stageId: exercise?.stageId ?? lesson?.stageId,
+      };
+    },
+    [lessonById],
+  );
+
   const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
@@ -177,6 +201,11 @@ export default function DeliveriesPage() {
       const matchesType = selectedTypes.length === 0 || (exercise?.type ? selectedTypes.includes(exercise.type) : false);
 
       if (!matchesType) return false;
+
+      const scope = resolveScope(exercise, row.lessonId);
+      if (selectedSkillId !== 'ALL' && String(scope.skillId ?? '') !== selectedSkillId) return false;
+      if (selectedStageId !== 'ALL' && String(scope.stageId ?? '') !== selectedStageId) return false;
+
       if (!normalizedSearch) return true;
 
       const haystack = [
@@ -191,7 +220,12 @@ export default function DeliveriesPage() {
 
       return haystack.includes(normalizedSearch);
     });
-  }, [exerciseById, rows, search, selectedTypes]);
+  }, [exerciseById, resolveScope, rows, search, selectedSkillId, selectedStageId, selectedTypes]);
+
+  const stageOptions = useMemo(
+    () => stages.filter((stage) => selectedSkillId === 'ALL' || String(stage.skillId) === selectedSkillId),
+    [stages, selectedSkillId],
+  );
 
   const exerciseOptions = useMemo(() => {
     return [...exercises].sort((a, b) => a.description.localeCompare(b.description));
@@ -432,6 +466,40 @@ export default function DeliveriesPage() {
               placeholder="Filtrar por aluno, lição, exercício ou resposta"
             />
           </FormControl>
+          <HStack spacing={4} align="flex-end">
+            <FormControl maxW="260px">
+              <FormLabel>Skill</FormLabel>
+              <Select
+                value={selectedSkillId}
+                onChange={(e) => {
+                  setSelectedSkillId(e.target.value);
+                  setSelectedStageId('ALL');
+                }}
+              >
+                <option value="ALL">Todas as skills</option>
+                {skills.map((skill) => (
+                  <option key={skill.id} value={String(skill.id)}>
+                    {skill.name}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl maxW="260px">
+              <FormLabel>Stage</FormLabel>
+              <Select
+                value={selectedStageId}
+                isDisabled={selectedSkillId === 'ALL'}
+                onChange={(e) => setSelectedStageId(e.target.value)}
+              >
+                <option value="ALL">Todos os stages</option>
+                {stageOptions.map((stage) => (
+                  <option key={stage.id} value={String(stage.id)}>
+                    {stage.name}
+                  </option>
+                ))}
+              </Select>
+            </FormControl>
+          </HStack>
           <FormControl>
             <FormLabel>Tipos de exercício exibidos</FormLabel>
             <CheckboxGroup

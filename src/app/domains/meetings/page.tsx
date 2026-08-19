@@ -8,6 +8,7 @@ import {
   Divider,
   Flex,
   FormControl,
+  FormHelperText,
   FormLabel,
   Heading,
   HStack,
@@ -38,6 +39,7 @@ import { meetingService, Meeting, MeetingPayload, MeetingStatus, MeetingType } f
 import { userService, User } from '@/services/userService';
 import { skillService, Skill } from '@/services/skillService';
 import { stageService, Stage } from '@/services/stageService';
+import { teacherService, Teacher } from '@/services/teacherService';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { planService, Plan } from '@/services/planService';
 
@@ -133,6 +135,7 @@ export default function MeetingsPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<MeetingRow | null>(null);
   const [meetingToDelete, setMeetingToDelete] = useState<MeetingRow | null>(null);
@@ -147,13 +150,14 @@ export default function MeetingsPage() {
 
   const loadData = async () => {
     try {
-      const [meetingsResult, usersResult, skillsResult, stagesResult, lessonsResult, plansResult] = await Promise.allSettled([
+      const [meetingsResult, usersResult, skillsResult, stagesResult, lessonsResult, plansResult, teachersResult] = await Promise.allSettled([
         meetingService.getAll(),
         userService.getAll(),
         skillService.getAll(),
         stageService.getAll(),
         lessonService.getAll(),
         planService.getAll(),
+        teacherService.getAll(),
       ]);
       const meetingsData = meetingsResult.status === 'fulfilled' ? meetingsResult.value : [];
       setMeetings(
@@ -167,6 +171,7 @@ export default function MeetingsPage() {
       setStages(stagesResult.status   === 'fulfilled' ? stagesResult.value  : []);
       setLessons(lessonsResult.status === 'fulfilled' ? lessonsResult.value : []);
       setPlans(plansResult.status     === 'fulfilled' ? plansResult.value   : []);
+      setTeachers(teachersResult.status === 'fulfilled' ? teachersResult.value : []);
     } catch {
       toast({ title: 'Erro ao carregar encontros', status: 'error' });
     }
@@ -196,17 +201,31 @@ export default function MeetingsPage() {
     return getUserLabel(teacherId);
   };
 
+  // TeacherResponse expoe id = user.id, entao a opcao carrega o id do usuario.
+  const teacherOptions = teachers
+    .map((teacher) => {
+      const userId = String(teacher.userId ?? teacher.id);
+      return { id: userId, label: getUserLabel(userId) };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+
   const getSkillLabel = (skillId: number) =>
     skills.find((item) => item.id === skillId)?.name || skillId;
 
-  const getStageLabel = (stageId: number) =>
-    stages.find((item) => item.id === stageId)?.name || stageId;
+  const getStageLabel = (stageId?: number | null) => {
+    if (stageId === null || stageId === undefined) return 'Todos';
+    return stages.find((item) => item.id === stageId)?.name || stageId;
+  };
 
-  const getLessonLabel = (lessonId: number | string) =>
-    lessons.find((item) => String(item.id) === String(lessonId))?.title || lessonId;
+  const getLessonLabel = (lessonId?: number | string | null) => {
+    if (lessonId === null || lessonId === undefined || lessonId === '') return '—';
+    return lessons.find((item) => String(item.id) === String(lessonId))?.title || lessonId;
+  };
 
-  const getPlanLabel = (planId: number) =>
-    plans.find((item) => Number(item.id) === planId)?.nome || planId;
+  const getPlanLabel = (planId?: number | null) => {
+    if (planId === null || planId === undefined) return 'Todos os planos';
+    return plans.find((item) => Number(item.id) === planId)?.nome || planId;
+  };
 
   const formatDateTimeForInput = (value?: string) => {
     if (!value) return '';
@@ -215,6 +234,16 @@ export default function MeetingsPage() {
 
   const formatDateTime = (value: string) =>
     new Date(value).toLocaleString('pt-BR');
+
+  // Lessons pertencem a uma stage: com stage "Todos" nao ha lesson possivel.
+  const getFormLessons = (data: MeetingFormState) =>
+    lessons.filter((lesson) => {
+      // Mantem a lesson ja selecionada visivel mesmo que a denormalizacao nao bata.
+      if (data.lessonId && String(lesson.id) === data.lessonId) return true;
+      const matchesSkill = !data.skillId || String(lesson.skillId) === data.skillId;
+      const matchesStage = !data.stageId || String(lesson.stageId) === data.stageId;
+      return matchesSkill && matchesStage;
+    });
 
   const normalizeLessonId = (value: string) => {
     const parsed = Number(value);
@@ -227,9 +256,9 @@ export default function MeetingsPage() {
     teacherId: data.teacherId,
     meetingType: data.meetingType,
     skillId: Number(data.skillId),
-    stageId: Number(data.stageId),
-    lessonId: normalizeLessonId(data.lessonId),
-    planId: Number(data.planId),
+    stageId: data.stageId ? Number(data.stageId) : null,
+    lessonId: data.lessonId ? normalizeLessonId(data.lessonId) : null,
+    planId: data.planId ? Number(data.planId) : null,
     scheduledStart: data.scheduledStart,
     meetingUrl: data.meetingUrl.trim() || undefined,
     recordingUrl: data.recordingUrl.trim() || undefined,
@@ -248,9 +277,6 @@ export default function MeetingsPage() {
     if (!data.title.trim()) return 'Título é obrigatório';
     if (!data.teacherId) return 'Tutor é obrigatório';
     if (!data.skillId) return 'Skill é obrigatória';
-    if (!data.stageId) return 'Stage é obrigatória';
-    if (!data.lessonId) return 'Lesson é obrigatória';
-    if (!data.planId) return 'Plan é obrigatório';
     if (!data.scheduledStart) return 'Data e hora são obrigatórias';
     if (!data.meetingUrl.trim()) return 'URL da reunião é obrigatória';
     return null;
@@ -440,9 +466,9 @@ export default function MeetingsPage() {
             value={data.teacherId}
             onChange={(e) => onChange('teacherId', e.target.value)}
           >
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {getUserLabel(user.id)}
+            {teacherOptions.map((teacher) => (
+              <option key={teacher.id} value={teacher.id}>
+                {teacher.label}
               </option>
             ))}
           </Select>
@@ -479,7 +505,11 @@ export default function MeetingsPage() {
           <Select
             placeholder="Selecione a skill"
             value={data.skillId}
-            onChange={(e) => onChange('skillId', e.target.value)}
+            onChange={(e) => {
+              onChange('skillId', e.target.value);
+              onChange('stageId', '');
+              onChange('lessonId', '');
+            }}
           >
             {skills.map((skill) => (
               <option key={skill.id} value={String(skill.id)}>
@@ -488,44 +518,53 @@ export default function MeetingsPage() {
             ))}
           </Select>
         </FormControl>
-        <FormControl isRequired>
+        <FormControl>
           <FormLabel>Stage</FormLabel>
           <Select
-            placeholder="Selecione a stage"
             value={data.stageId}
-            onChange={(e) => onChange('stageId', e.target.value)}
+            onChange={(e) => {
+              onChange('stageId', e.target.value);
+              onChange('lessonId', '');
+            }}
           >
-            {stages.map((stage) => (
-              <option key={stage.id} value={String(stage.id)}>
-                {stage.name}
-              </option>
-            ))}
+            <option value="">Todos os stages</option>
+            {stages
+              .filter((stage) => !data.skillId || String(stage.skillId) === data.skillId)
+              .map((stage) => (
+                <option key={stage.id} value={String(stage.id)}>
+                  {stage.name}
+                </option>
+              ))}
           </Select>
         </FormControl>
       </HStack>
 
       <HStack spacing={4} align="flex-start">
-        <FormControl isRequired>
+        <FormControl>
           <FormLabel>Lesson</FormLabel>
           <Select
-            placeholder="Selecione a lesson"
             value={data.lessonId}
+            isDisabled={!data.stageId}
             onChange={(e) => onChange('lessonId', e.target.value)}
           >
-            {lessons.map((lesson) => (
+            <option value="">Nenhuma lesson específica</option>
+            {getFormLessons(data).map((lesson) => (
               <option key={lesson.id} value={String(lesson.id)}>
                 {lesson.title}
               </option>
             ))}
           </Select>
+          <FormHelperText>
+            {data.stageId ? 'Opcional.' : 'Indisponível para encontros de todos os stages.'}
+          </FormHelperText>
         </FormControl>
-        <FormControl isRequired>
+        <FormControl>
           <FormLabel>Plan</FormLabel>
           <Select
-            placeholder="Selecione o plan"
             value={data.planId}
             onChange={(e) => onChange('planId', e.target.value)}
           >
+            <option value="">Todos os planos</option>
             {plans.map((plan) => (
               <option key={plan.id} value={String(plan.id)}>
                 {plan.nome}
@@ -708,7 +747,9 @@ export default function MeetingsPage() {
           <ModalHeader>{editingMeeting ? 'Editar Encontro' : 'Novo Encontro'}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            {renderMeetingFields(formData, (field, value) => setFormData({ ...formData, [field]: value }))}
+            {renderMeetingFields(formData, (field, value) =>
+              setFormData((current) => ({ ...current, [field]: value }))
+            )}
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={onFormClose} isDisabled={isLoading}>Cancelar</Button>

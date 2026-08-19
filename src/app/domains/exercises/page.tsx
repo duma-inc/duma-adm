@@ -58,15 +58,15 @@ import { stageService, Stage } from '@/services/stageService';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 const DIFFICULTY_COLORS: Record<ExerciseDifficulty, string> = {
-  BEGINNER: 'green',
-  INTERMEDIATE: 'yellow',
-  ADVANCED: 'red',
+  EASY: 'green',
+  MODERATE: 'yellow',
+  HARD: 'red',
 };
 
 const DIFFICULTY_LABELS: Record<ExerciseDifficulty, string> = {
-  BEGINNER: 'Iniciante',
-  INTERMEDIATE: 'Intermediário',
-  ADVANCED: 'Avançado',
+  EASY: 'Fácil',
+  MODERATE: 'Moderado',
+  HARD: 'Difícil',
 };
 
 const TYPE_LABELS: Record<ExerciseType, string> = {
@@ -77,6 +77,8 @@ const TYPE_LABELS: Record<ExerciseType, string> = {
   MATCHING: 'Correspondência',
   SHORT_ANSWER: 'Resposta Curta',
   ESSAY: 'Redação',
+  SPEAKING: 'Fala',
+  LISTENING: 'Escuta',
 };
 
 const ORIGIN_LABELS: Record<ExerciseOrigin, string> = {
@@ -118,7 +120,7 @@ const INITIAL_FORM: FormData = {
   translation: '',
   explanation: '',
   type: 'MULTIPLE_CHOICE',
-  difficulty: 'BEGINNER',
+  difficulty: 'MODERATE',
   language: 'pt',
   origin: 'BASE',
   status: 'ACTIVE',
@@ -481,18 +483,45 @@ export default function ExercisesPage() {
           </InputGroup>
           <Select
             maxW="180px"
+            value={selectedSkillId}
+            onChange={(e) => {
+              setSelectedSkillId(e.target.value);
+              setSelectedStageId('ALL');
+            }}
+            bg="white"
+          >
+            <option value="ALL">Todas as Skills</option>
+            {skills.map((skill) => (
+              <option key={skill.id} value={String(skill.id)}>
+                {skill.name}
+              </option>
+            ))}
+          </Select>
+          <Select
+            maxW="180px"
+            value={selectedStageId}
+            onChange={(e) => setSelectedStageId(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todos os Stages</option>
+            {stages
+              .filter((stage) => selectedSkillId === 'ALL' || String(stage.skillId) === selectedSkillId)
+              .map((stage) => (
+                <option key={stage.id} value={String(stage.id)}>
+                  {stage.name}
+                </option>
+              ))}
+          </Select>
+          <Select
+            maxW="180px"
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
             bg="white"
           >
             <option value="ALL">Todos os Tipos</option>
-            <option value="MULTIPLE_CHOICE">Múltipla Escolha</option>
-            <option value="TRUE_FALSE">Verdadeiro/Falso</option>
-            <option value="TRANSLATION">Tradução</option>
-            <option value="FILL_IN_THE_BLANK">Completar Lacuna</option>
-            <option value="MATCHING">Correspondência</option>
-            <option value="SHORT_ANSWER">Resposta Curta</option>
-            <option value="ESSAY">Redação</option>
+            {Object.entries(TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </Select>
           <Select
             maxW="180px"
@@ -501,34 +530,8 @@ export default function ExercisesPage() {
             bg="white"
           >
             <option value="ALL">Todas as Dificuldades</option>
-            <option value="BEGINNER">Iniciante</option>
-            <option value="INTERMEDIATE">Intermediário</option>
-            <option value="ADVANCED">Avançado</option>
-          </Select>
-          <Select
-            maxW="180px"
-            value={selectedStageId}
-            onChange={(e) => setSelectedStageId(e.target.value)}
-            bg="white"
-          >
-            <option value="ALL">Todas as Trilhas</option>
-            {stages.map((stage) => (
-              <option key={stage.id} value={String(stage.id)}>
-                {stage.name}
-              </option>
-            ))}
-          </Select>
-          <Select
-            maxW="180px"
-            value={selectedSkillId}
-            onChange={(e) => setSelectedSkillId(e.target.value)}
-            bg="white"
-          >
-            <option value="ALL">Todas as Skills</option>
-            {skills.map((skill) => (
-              <option key={skill.id} value={String(skill.id)}>
-                {skill.name}
-              </option>
+            {Object.entries(DIFFICULTY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
             ))}
           </Select>
           <Select
@@ -593,6 +596,54 @@ export default function ExercisesPage() {
               </FormControl>
 
               <HStack spacing={4} align="flex-start">
+                <FormControl>
+                  <FormLabel>Skill</FormLabel>
+                  <Select
+                    placeholder="Nenhuma"
+                    value={formData.skillId}
+                    onChange={(e) => setFormData({ ...formData, skillId: e.target.value })}
+                  >
+                    {skills.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Stage</FormLabel>
+                  <Select
+                    placeholder="Nenhuma"
+                    value={formData.stageId}
+                    onChange={(e) => setFormData({ ...formData, stageId: e.target.value })}
+                  >
+                    {stages
+                      .filter((stage) => !formData.skillId || String(stage.skillId) === formData.skillId)
+                      .map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Lição</FormLabel>
+                  <Select
+                    placeholder="Nenhuma"
+                    value={formData.lessonId}
+                    onChange={(e) => setFormData({ ...formData, lessonId: e.target.value })}
+                  >
+                    {lessons
+                      .filter((lesson) => {
+                        if (formData.lessonId && String(lesson.id) === formData.lessonId) return true;
+                        const okSkill = !formData.skillId || String(lesson.skillId) === formData.skillId;
+                        const okStage = !formData.stageId || String(lesson.stageId) === formData.stageId;
+                        return okSkill && okStage;
+                      })
+                      .map(l => (
+                        <option key={l.id} value={l.id}>{l.title}</option>
+                      ))}
+                  </Select>
+                </FormControl>
+              </HStack>
+
+              <HStack spacing={4} align="flex-start">
                 <FormControl isRequired>
                   <FormLabel>Tipo</FormLabel>
                   <Select
@@ -610,9 +661,9 @@ export default function ExercisesPage() {
                     value={formData.difficulty}
                     onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as ExerciseDifficulty })}
                   >
-                    <option value="BEGINNER">Iniciante</option>
-                    <option value="INTERMEDIATE">Intermediário</option>
-                    <option value="ADVANCED">Avançado</option>
+                    {Object.entries(DIFFICULTY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </Select>
                 </FormControl>
                 <FormControl isRequired>
@@ -663,45 +714,6 @@ export default function ExercisesPage() {
                     <option value="GLOBAL_REUSABLE">Global</option>
                     <option value="LESSON_ONLY">Somente Lição</option>
                     <option value="SINGLE_USE">Uso Único</option>
-                  </Select>
-                </FormControl>
-              </HStack>
-
-              <HStack spacing={4} align="flex-start">
-                <FormControl>
-                  <FormLabel>Lição</FormLabel>
-                  <Select
-                    placeholder="Nenhuma"
-                    value={formData.lessonId}
-                    onChange={(e) => setFormData({ ...formData, lessonId: e.target.value })}
-                  >
-                    {lessons.map(l => (
-                      <option key={l.id} value={l.id}>{l.title}</option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Skill</FormLabel>
-                  <Select
-                    placeholder="Nenhuma"
-                    value={formData.skillId}
-                    onChange={(e) => setFormData({ ...formData, skillId: e.target.value })}
-                  >
-                    {skills.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl>
-                  <FormLabel>Stage</FormLabel>
-                  <Select
-                    placeholder="Nenhuma"
-                    value={formData.stageId}
-                    onChange={(e) => setFormData({ ...formData, stageId: e.target.value })}
-                  >
-                    {stages.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
                   </Select>
                 </FormControl>
               </HStack>
@@ -815,7 +827,7 @@ export default function ExercisesPage() {
                   rows={14}
                   value={batchJsonText}
                   onChange={(e) => setBatchJsonText(e.target.value)}
-                  placeholder='[{"description":"...", "type":"MULTIPLE_CHOICE", "difficulty":"BEGINNER", "language":"pt", "origin":"BASE", "options":[{"text":"A","isCorrect":true},{"text":"B","isCorrect":false}]}]'
+                  placeholder='[{"description":"...", "type":"MULTIPLE_CHOICE", "difficulty":"MODERATE", "language":"pt", "origin":"BASE", "options":[{"text":"A","isCorrect":true},{"text":"B","isCorrect":false}]}]'
                   fontFamily="mono"
                 />
               </FormControl>
@@ -834,7 +846,7 @@ export default function ExercisesPage() {
     "translation": "Opcional",
     "explanation": "Opcional",
     "type": "MULTIPLE_CHOICE",
-    "difficulty": "BEGINNER",
+    "difficulty": "MODERATE",
     "language": "pt",
     "origin": "BASE",
     "status": "ACTIVE",
