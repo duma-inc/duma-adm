@@ -13,4 +13,9 @@ export const userService = {
     const response = await api.get('/users');
     return response.data;
   },
+  /** Usuario logado. O nome vem do backend, nao do token do Keycloak. */
+  getMe: async (): Promise<User> => {
+    const response = await api.get('/users/me');
+    return response.data;
+  },
 };

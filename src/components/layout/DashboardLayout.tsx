@@ -2,21 +2,43 @@
 
 import { Box, Flex, Button, Menu, MenuButton, MenuList, MenuItem, HStack, Icon, Text, Portal, Avatar, Spinner } from '@chakra-ui/react';
 import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications } from 'react-icons/md';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
 import logo from '@/assets/logoDuma.png';
+import { userService } from '@/services/userService';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const [backendName, setBackendName] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/login');
     }
   }, [status, router]);
+
+  // O nome do token e montado pelo Keycloak (firstName + lastName) e fica defasado
+  // quando o cadastro e editado no adm. O backend e a fonte de verdade.
+  useEffect(() => {
+    if (status !== 'authenticated') return;
+    let active = true;
+    userService
+      .getMe()
+      .then((user) => {
+        if (active && user?.name) setBackendName(user.name);
+      })
+      .catch(() => {
+        // Mantem o nome da sessao como fallback.
+      });
+    return () => {
+      active = false;
+    };
+  }, [status]);
+
+  const displayName = backendName ?? session?.user?.name ?? 'Admin';
 
   if (status === 'loading') {
     return (
@@ -186,12 +208,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <HStack spacing={3}>
           <Avatar
             size="sm"
-            name={session?.user?.name ?? 'Admin'}
+            name={displayName}
             bg="primary.500"
             color="white"
           />
           <Text fontSize="sm" color="whiteAlpha.700" display={{ base: 'none', md: 'block' }}>
-            {session?.user?.name ?? 'Admin'}
+            {displayName}
           </Text>
           <Button
             size="sm"

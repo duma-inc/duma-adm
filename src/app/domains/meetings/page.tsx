@@ -86,6 +86,8 @@ type MeetingFormState = {
   meetingUrl: string;
   recordingUrl: string;
   attendanceKeyword: string;
+  /** Encontro tem palavra-chave, mas o backend nao a revelou para este usuario. */
+  attendanceKeywordHidden: boolean;
   status: MeetingStatus;
 };
 
@@ -102,6 +104,7 @@ const INITIAL_FORM: MeetingFormState = {
   meetingUrl: '',
   recordingUrl: '',
   attendanceKeyword: '',
+  attendanceKeywordHidden: false,
   status: 'SCHEDULED',
 };
 
@@ -288,7 +291,8 @@ export default function MeetingsPage() {
     scheduledStart: data.scheduledStart,
     meetingUrl: data.meetingUrl.trim() || undefined,
     recordingUrl: data.recordingUrl.trim() || undefined,
-    attendanceKeyword: data.attendanceKeyword.trim() || undefined,
+    // Campo omitido preserva o valor no backend; string vazia limpa de proposito.
+    attendanceKeyword: data.attendanceKeywordHidden ? undefined : data.attendanceKeyword.trim(),
     status: data.status,
   });
 
@@ -330,6 +334,7 @@ export default function MeetingsPage() {
         meetingUrl: meeting.meetingUrl || '',
         recordingUrl: meeting.recordingUrl || '',
         attendanceKeyword: meeting.attendanceKeyword || '',
+        attendanceKeywordHidden: !!meeting.hasAttendanceKeyword && !meeting.attendanceKeyword,
         status: meeting.status || 'SCHEDULED',
       });
     } else {
@@ -692,12 +697,14 @@ export default function MeetingsPage() {
         <Input
           value={data.attendanceKeyword}
           onChange={(e) => onChange('attendanceKeyword', e.target.value)}
-          placeholder="Ex: BANANA2026"
+          placeholder={data.attendanceKeywordHidden ? 'Definida — sem permissão para visualizar' : 'Ex: BANANA2026'}
+          isDisabled={data.attendanceKeywordHidden}
           maxLength={60}
         />
         <FormHelperText>
-          Exiba esta palavra durante o encontro. O aluno digita no app para registrar presença,
-          e só funciona enquanto o encontro estiver como &quot;Em andamento&quot;. Deixe vazio para não usar check-in.
+          {data.attendanceKeywordHidden
+            ? 'Este encontro já tem palavra-chave, mas sua conta não tem permissão para vê-la. Salvar mantém a palavra atual.'
+            : 'Exiba esta palavra durante o encontro. O aluno digita no app para registrar presença, e só funciona enquanto o encontro estiver como "Em andamento". Deixe vazio para não usar check-in.'}
         </FormHelperText>
       </FormControl>
     </VStack>
