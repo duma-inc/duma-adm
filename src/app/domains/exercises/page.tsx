@@ -51,6 +51,7 @@ import {
   ExerciseOrigin,
   ExerciseStatus,
   ExerciseReusePolicy,
+  requiresOptions,
 } from '@/services/exerciseService';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { skillService, Skill } from '@/services/skillService';
@@ -240,13 +241,15 @@ export default function ExercisesPage() {
       toast({ title: 'Descrição é obrigatória', status: 'warning' });
       return;
     }
-    if (!formData.options.some(o => o.isCorrect)) {
-      toast({ title: 'Marque pelo menos uma opção como correta', status: 'warning' });
-      return;
-    }
-    if (formData.options.some(o => !o.text.trim())) {
-      toast({ title: 'Preencha o texto de todas as opções', status: 'warning' });
-      return;
+    if (showOptions) {
+      if (!formData.options.some(o => o.isCorrect)) {
+        toast({ title: 'Marque pelo menos uma opção como correta', status: 'warning' });
+        return;
+      }
+      if (formData.options.some(o => !o.text.trim())) {
+        toast({ title: 'Preencha o texto de todas as opções', status: 'warning' });
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -258,12 +261,14 @@ export default function ExercisesPage() {
         skillId: formData.skillId || undefined,
         translation: formData.translation || undefined,
         explanation: formData.explanation || undefined,
-        options: formData.options.map(o => ({
-          ...(o.optionId ? { optionId: o.optionId } : {}),
-          text: o.text,
-          matchKey: o.matchKey || null,
-          isCorrect: o.isCorrect,
-        })),
+        options: showOptions
+          ? formData.options.map(o => ({
+              ...(o.optionId ? { optionId: o.optionId } : {}),
+              text: o.text,
+              matchKey: o.matchKey || null,
+              isCorrect: o.isCorrect,
+            }))
+          : [],
       };
 
       if (editingExercise) {
@@ -318,15 +323,32 @@ export default function ExercisesPage() {
       return 'O JSON deve conter um array de exercícios.';
     }
 
-    for (const exercise of items) {
-      if (!exercise.description?.trim()) return 'Todos os exercícios precisam ter descrição.';
-      if (!exercise.type) return 'Todos os exercícios precisam ter tipo.';
-      if (!exercise.difficulty) return 'Todos os exercícios precisam ter dificuldade.';
-      if (!exercise.origin) return 'Todos os exercícios precisam ter origem.';
-      if (!exercise.language) return 'Todos os exercícios precisam ter idioma.';
-      if (!exercise.options?.length) return 'Todos os exercícios precisam ter opções.';
-      if (exercise.options.some((option) => !option.text?.trim())) return 'Todas as opções precisam ter texto.';
-      if (!exercise.options.some((option) => option.isCorrect)) return 'Cada exercício precisa de ao menos uma opção correta.';
+    for (let index = 0; index < items.length; index += 1) {
+      const exercise = items[index];
+      // 1-based para bater com o que a pessoa ve no arquivo.
+      const onde = `Exercício ${index + 1}`;
+
+      if (!exercise.description?.trim()) return `${onde}: informe a descrição.`;
+      if (!exercise.difficulty) return `${onde}: informe a dificuldade.`;
+      if (!exercise.origin) return `${onde}: informe a origem.`;
+      if (!exercise.language) return `${onde}: informe o idioma.`;
+
+      const type = exercise.type;
+      if (!type) return `${onde}: informe o tipo.`;
+
+      // ESSAY e SHORT_ANSWER sao dissertativos e corrigidos pela IA: nao ha gabarito.
+      if (!requiresOptions(type)) continue;
+
+      const options = exercise.options;
+      if (!options?.length) {
+        return `${onde} (${TYPE_LABELS[type] ?? type}): informe as opções.`;
+      }
+      if (options.some((option) => !option.text?.trim())) {
+        return `${onde}: todas as opções precisam ter texto.`;
+      }
+      if (!options.some((option) => option.isCorrect)) {
+        return `${onde}: marque ao menos uma opção como correta.`;
+      }
     }
 
     return null;
@@ -452,6 +474,8 @@ export default function ExercisesPage() {
   ];
 
   const showMatchKey = formData.type === 'MATCHING';
+  // Dissertativos nao tem gabarito: a IA corrige a resposta livre do aluno.
+  const showOptions = requiresOptions(formData.type);
 
   return (
     <DashboardLayout>
@@ -720,7 +744,8 @@ export default function ExercisesPage() {
 
               <Divider />
 
-              {/* Opções */}
+              {/* Opções — ocultas nos tipos dissertativos, que não têm gabarito */}
+              {showOptions && (
               <Box>
                 <Flex justify="space-between" align="center" mb={3}>
                   <Text fontWeight="semibold" fontSize="sm" color="gray.600">
@@ -786,6 +811,7 @@ export default function ExercisesPage() {
                   </Tbody>
                 </Table>
               </Box>
+              )}
             </VStack>
           </ModalBody>
           <ModalFooter>

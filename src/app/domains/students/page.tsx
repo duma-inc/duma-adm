@@ -25,6 +25,7 @@ import {
   Input,
   InputGroup,
   InputLeftElement,
+  Checkbox,
 } from '@chakra-ui/react';
 import { MdAdd, MdSearch } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
@@ -40,6 +41,7 @@ import { planService, Plan } from '@/services/planService';
 import { skillService, Skill } from '@/services/skillService';
 import { stageService, Stage } from '@/services/stageService';
 import { lessonService, Lesson } from '@/services/lessonService';
+import { lessonProgressService } from '@/services/lessonProgressService';
 
 const STATUS_COLORS: Record<EnrollmentStatus, string> = {
   ACTIVE: 'green',
@@ -83,6 +85,11 @@ export default function EnrollmentsPage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
 
+  // Conclusão de lições do aluno selecionado. `completedLessonIds` é o que veio do backend;
+  // `completionOverrides` são as caixas que o admin mexeu e ainda não salvou.
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
+  const [completionOverrides, setCompletionOverrides] = useState<Record<string, boolean>>({});
+
   // States for filtering
   const [searchText, setSearchText] = useState('');
   const [selectedPlanId, setSelectedPlanId] = useState('ALL');
@@ -118,6 +125,30 @@ export default function EnrollmentsPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Student.id == User.id no backend (@MapsId), então o userId do form serve como studentId.
+  useEffect(() => {
+    if (!isFormOpen || !formData.userId) {
+      setCompletedLessonIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    lessonProgressService
+      .getByStudent(formData.userId)
+      .then((list) => {
+        if (cancelled) return;
+        setCompletedLessonIds(
+          new Set(list.filter((p) => p.status === 'COMPLETED').map((p) => p.lessonId))
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCompletedLessonIds(new Set());
+      });
+    return () => { cancelled = true; };
+  }, [isFormOpen, formData.userId]);
+
+  const isLessonCompleted = (lessonId: string) =>
+    completionOverrides[lessonId] ?? completedLessonIds.has(lessonId);
+
   const selectedStage = stages.find((stage) => String(stage.id) === formData.stageId);
 
   const stagesMatchingSkill = stages.filter((stage) => {
@@ -135,6 +166,8 @@ export default function EnrollmentsPage() {
     return matchesStage && matchesSkill;
   });
 
+  const completedInStage = filteredLessons.filter((lesson) => isLessonCompleted(lesson.id)).length;
+
   const handleOpenForm = (enrollment?: Enrollment) => {
     if (enrollment) {
       setEditingEnrollment(enrollment);
@@ -150,6 +183,7 @@ export default function EnrollmentsPage() {
       setEditingEnrollment(null);
       setFormData(INITIAL_FORM);
     }
+    setCompletionOverrides({});
     onFormOpen();
   };
 
@@ -183,6 +217,24 @@ export default function EnrollmentsPage() {
         });
         toastRef.current({ title: 'Matrícula criada com sucesso', status: 'success' });
       }
+
+      // Só o que o admin realmente mudou vira chamada — o endpoint é idempotente, mas reenviar
+      // tudo reescreveria o completedAt de lições já concluídas.
+      const completionChanges = Object.entries(completionOverrides).filter(
+        ([lessonId, completed]) => completed !== completedLessonIds.has(lessonId)
+      );
+      if (completionChanges.length > 0) {
+        await Promise.all(
+          completionChanges.map(([lessonId, completed]) =>
+            lessonProgressService.setCompletion(formData.userId, lessonId, completed)
+          )
+        );
+        toastRef.current({
+          title: `${completionChanges.length} lição(ões) atualizada(s)`,
+          status: 'success',
+        });
+      }
+
       onFormClose();
       loadAll();
     } catch {
@@ -472,6 +524,28 @@ export default function EnrollmentsPage() {
                     </option>
                   ))}
                 </Select>
+
+                {formData.currentLessonId && formData.userId && (
+                  <Checkbox
+                    mt={3}
+                    colorScheme="primary"
+                    isChecked={isLessonCompleted(formData.currentLessonId)}
+                    onChange={(e) =>
+                      setCompletionOverrides({
+                        ...completionOverrides,
+                        [formData.currentLessonId]: e.target.checked,
+                      })
+                    }
+                  >
+                    <Text fontSize="sm">Aluno concluiu esta lição</Text>
+                  </Checkbox>
+                )}
+
+                {formData.stageId && filteredLessons.length > 0 && (
+                  <Text mt={2} fontSize="xs" color="gray.500">
+                    {completedInStage} de {filteredLessons.length} lições concluídas nesta trilha
+                  </Text>
+                )}
               </FormControl>
               <FormControl isRequired>
                 <FormLabel>Status</FormLabel>

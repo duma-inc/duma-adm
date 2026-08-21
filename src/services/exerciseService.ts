@@ -10,6 +10,16 @@ export type ExerciseType =
   | 'ESSAY'
   | 'SPEAKING'
   | 'LISTENING';
+
+/**
+ * Tipos dissertativos: o aluno escreve livremente e a correcao e feita pela IA,
+ * entao nao existe gabarito em `options`. Todo o resto sempre traz opcoes
+ * (inclusive SPEAKING, cuja unica opcao e a frase-alvo).
+ */
+export const TYPES_WITHOUT_OPTIONS: ExerciseType[] = ['ESSAY', 'SHORT_ANSWER'];
+
+export const requiresOptions = (type: ExerciseType) => !TYPES_WITHOUT_OPTIONS.includes(type);
+
 export type ExerciseDifficulty = 'EASY' | 'MODERATE' | 'HARD';
 export type ExerciseLanguage = string; // ex: "en", "pt", "pt-BR", "en-US"
 export type ExerciseOrigin = 'LEVEL_TEST' | 'LESSON' | 'PRACTICE' | 'BASE';
