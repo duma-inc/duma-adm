@@ -45,3 +45,19 @@ export const fileService = {
     return response.data;
   },
 };
+
+/**
+ * Os 3 passos do upload num só: intent -> PUT direto no R2 -> complete.
+ *
+ * Cada tela que sobe arquivo repetia essa sequência à mão (resources, lesson-books,
+ * podcasts). As telas novas usam isto.
+ */
+export async function uploadFile(file: File): Promise<FileResponse> {
+  const intent = await fileService.createUploadIntent({
+    fileName: file.name,
+    contentType: file.type || 'application/octet-stream',
+    size: file.size,
+  });
+  await fileService.uploadToStorage(intent.uploadUrl, file);
+  return fileService.completeUpload(intent.id);
+}

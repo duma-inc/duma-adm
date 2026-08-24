@@ -44,7 +44,7 @@ import { MdAdd, MdClose, MdDelete, MdFilterList, MdGroups, MdPeople } from 'reac
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
-import { meetingService, Meeting, MeetingPayload, MeetingStatus, MeetingType } from '@/services/meetingService';
+import { meetingService, Meeting, MeetingPayload, MeetingStatus, MeetingType, MeetingDuration } from '@/services/meetingService';
 import { userService, User } from '@/services/userService';
 import { skillService, Skill } from '@/services/skillService';
 import { stageService, Stage } from '@/services/stageService';
@@ -67,6 +67,13 @@ const STATUS_LABELS: Record<MeetingStatus, string> = {
   CANCELED: 'Cancelado',
 };
 
+const DURATION_LABELS: Record<MeetingDuration, string> = {
+  MINUTES_15: '15 minutos',
+  MINUTES_30: '30 minutos',
+  MINUTES_45: '45 minutos',
+  MINUTES_60: '60 minutos',
+};
+
 const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
   PRACTICAL: 'Prática',
   CONTENT: 'Conteúdo',
@@ -83,6 +90,8 @@ type MeetingFormState = {
   lessonId: string;
   planId: string;
   scheduledStart: string;
+  /** Vazio = sem duracao definida (tempo livre). */
+  duration: MeetingDuration | '';
   meetingUrl: string;
   recordingUrl: string;
   attendanceKeyword: string;
@@ -101,6 +110,7 @@ const INITIAL_FORM: MeetingFormState = {
   lessonId: '',
   planId: '',
   scheduledStart: '',
+  duration: '',
   meetingUrl: '',
   recordingUrl: '',
   attendanceKeyword: '',
@@ -289,6 +299,8 @@ export default function MeetingsPage() {
     lessonId: data.lessonId ? normalizeLessonId(data.lessonId) : null,
     planId: data.planId ? Number(data.planId) : null,
     scheduledStart: data.scheduledStart,
+    // Ao contrario da palavra-chave, null aqui limpa mesmo: e como se volta ao tempo livre.
+    duration: data.duration || null,
     meetingUrl: data.meetingUrl.trim() || undefined,
     recordingUrl: data.recordingUrl.trim() || undefined,
     // Campo omitido preserva o valor no backend; string vazia limpa de proposito.
@@ -331,6 +343,7 @@ export default function MeetingsPage() {
         lessonId: String(meeting.lessonId || ''),
         planId: String(meeting.planId || ''),
         scheduledStart: formatDateTimeForInput(meeting.scheduledStart),
+        duration: meeting.duration || '',
         meetingUrl: meeting.meetingUrl || '',
         recordingUrl: meeting.recordingUrl || '',
         attendanceKeyword: meeting.attendanceKeyword || '',
@@ -511,6 +524,14 @@ export default function MeetingsPage() {
     { key: 'recordingUrl', header: 'Recording URL', render: (item: Meeting) => item.recordingUrl || '—' },
     { key: 'scheduledStart', header: 'Início', render: (item: Meeting) => formatDateTime(item.scheduledStart) },
     {
+      key: 'duration',
+      header: 'Duração',
+      render: (item: Meeting) =>
+        item.duration
+          ? DURATION_LABELS[item.duration]
+          : <Text fontSize="sm" color="gray.400">—</Text>,
+    },
+    {
       key: 'status',
       header: 'Status',
       render: (item: Meeting) => (
@@ -658,6 +679,21 @@ export default function MeetingsPage() {
             value={data.scheduledStart}
             onChange={(e) => onChange('scheduledStart', e.target.value)}
           />
+        </FormControl>
+        <FormControl>
+          <FormLabel>Duração</FormLabel>
+          <Select
+            value={data.duration}
+            onChange={(e) => onChange('duration', e.target.value)}
+          >
+            <option value="">Sem duração definida</option>
+            {Object.entries(DURATION_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+          <FormHelperText>Sem duração, a aula é tempo livre e o toolkit não exibe timer.</FormHelperText>
         </FormControl>
         <FormControl isRequired>
           <FormLabel>Status</FormLabel>

@@ -2,6 +2,8 @@ import { api } from '@/lib/api';
 
 export type MeetingStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
 export type MeetingType = 'PRACTICAL' | 'CONTENT' | 'ASSESSMENT';
+/** Duracao prevista do encontro. Ausente/null = tempo livre: o toolkit nao exibe timer. */
+export type MeetingDuration = 'MINUTES_15' | 'MINUTES_30' | 'MINUTES_45' | 'MINUTES_60';
 
 export interface Meeting {
   id?: string;
@@ -16,6 +18,7 @@ export interface Meeting {
   lessonId: number | string | null;
   planId: number | null;
   scheduledStart: string;
+  duration?: MeetingDuration | null;
   /** Preenchido apenas para colaboradores/tutores; para aluno vem null. */
   attendanceKeyword?: string | null;
   hasAttendanceKeyword?: boolean;

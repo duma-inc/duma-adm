@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, Flex, Button, Menu, MenuButton, MenuList, MenuItem, HStack, Icon, Text, Portal, Avatar, Spinner } from '@chakra-ui/react';
-import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications } from 'react-icons/md';
+import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications, MdSlideshow, MdSportsEsports, MdStyle } from 'react-icons/md';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -105,6 +105,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   </MenuItem>
                   <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdAssignment} />} onClick={() => router.push('/domains/exercises')}>
                     Exercícios
+                  </MenuItem>
+                  {/* Material que o professor projeta no duma-toolkit durante a aula. */}
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdSlideshow} />} onClick={() => router.push('/domains/slide-decks')}>
+                    Slides
+                  </MenuItem>
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdSportsEsports} />} onClick={() => router.push('/domains/games')}>
+                    Jogos
+                  </MenuItem>
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdStyle} />} onClick={() => router.push('/domains/class-flashcards')}>
+                    Flashcards da Aula
                   </MenuItem>
                   <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdRateReview} />} onClick={() => router.push('/domains/deliveries')}>
                     Entregas
