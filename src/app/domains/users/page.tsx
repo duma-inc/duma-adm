@@ -26,7 +26,7 @@ import {
   InputLeftElement,
   Icon,
 } from '@chakra-ui/react';
-import { MdAdd, MdContentCopy, MdSearch } from 'react-icons/md';
+import { MdAdd, MdContentCopy, MdSearch, MdVpnKey } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { adminUserService, AdminUser } from '@/services/adminUserService';
@@ -38,6 +38,9 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  /** Distingue senha de criação de senha redefinida — o texto do modal muda. */
+  const [isPasswordReset, setIsPasswordReset] = useState(false);
+  const [userToReset, setUserToReset] = useState<AdminUser | null>(null);
 
   // States for filtering
   const [searchText, setSearchText] = useState('');
@@ -46,6 +49,7 @@ export default function UsersPage() {
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const { isOpen: isPasswordOpen, onOpen: onPasswordOpen, onClose: onPasswordClose } = useDisclosure();
+  const { isOpen: isResetOpen, onOpen: onResetOpen, onClose: onResetClose } = useDisclosure();
   
   const toast = useToast();
 
@@ -103,6 +107,7 @@ export default function UsersPage() {
         toast({ title: 'Usuário criado com sucesso', status: 'success' });
         if (response.temporaryPassword) {
             setCreatedPassword(response.temporaryPassword);
+            setIsPasswordReset(false);
             onPasswordOpen();
         }
         onFormClose();
@@ -110,6 +115,29 @@ export default function UsersPage() {
       loadData();
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Erro ao salvar o usuário';
+      toast({ title: errorMessage, status: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!userToReset) return;
+    setIsLoading(true);
+    try {
+      const response = await adminUserService.resetPassword(userToReset.id);
+      onResetClose();
+      onFormClose();
+      if (response.temporaryPassword) {
+        setCreatedPassword(response.temporaryPassword);
+        setIsPasswordReset(true);
+        onPasswordOpen();
+      } else {
+        // Sem senha na resposta não há o que repassar — melhor avisar que fingir sucesso.
+        toast({ title: 'A senha foi redefinida, mas não veio na resposta', status: 'warning' });
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Erro ao redefinir a senha';
       toast({ title: errorMessage, status: 'error' });
     } finally {
       setIsLoading(false);
@@ -231,20 +259,48 @@ export default function UsersPage() {
               </FormControl>
             </VStack>
           </ModalBody>
-          <ModalFooter>
-            <Button variant="ghost" mr={3} onClick={onFormClose} isDisabled={isLoading}>Cancelar</Button>
-            <Button colorScheme="primary" onClick={handleSave} isLoading={isLoading}>Salvar</Button>
+          <ModalFooter justifyContent={editingUser ? 'space-between' : 'flex-end'}>
+            {editingUser && (
+              <Button
+                variant="outline"
+                colorScheme="orange"
+                leftIcon={<MdVpnKey />}
+                isDisabled={isLoading}
+                onClick={() => { setUserToReset(editingUser); onResetOpen(); }}
+              >
+                Gerar nova senha
+              </Button>
+            )}
+            <Flex>
+              <Button variant="ghost" mr={3} onClick={onFormClose} isDisabled={isLoading}>Cancelar</Button>
+              <Button colorScheme="primary" onClick={handleSave} isLoading={isLoading}>Salvar</Button>
+            </Flex>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
+      <ConfirmDeleteModal
+        isOpen={isResetOpen}
+        onClose={onResetClose}
+        onConfirm={handleResetPassword}
+        isLoading={isLoading}
+        title="Gerar nova senha"
+        description={`A senha atual de ${userToReset?.name ?? ''} deixa de funcionar imediatamente. A nova será exibida uma única vez, para você repassar. Continuar?`}
+        confirmLabel="Gerar nova senha"
+        confirmColorScheme="orange"
+      />
+
       <Modal isOpen={isPasswordOpen} onClose={onPasswordClose} isCentered>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Usuário Criado</ModalHeader>
+          <ModalHeader>{isPasswordReset ? 'Nova Senha Gerada' : 'Usuário Criado'}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <Text mb={4}>O usuário foi criado no sistema e no Keycloak. Guarde a senha gerada para enviá-la ao usuário, pois ela não será exibida novamente.</Text>
+            <Text mb={4}>
+              {isPasswordReset
+                ? 'A senha anterior foi substituída e não vale mais. Guarde a nova para enviá-la ao usuário, pois ela não será exibida novamente.'
+                : 'O usuário foi criado no sistema e no Keycloak. Guarde a senha gerada para enviá-la ao usuário, pois ela não será exibida novamente.'}
+            </Text>
             <Flex align="center" bg="gray.100" p={3} borderRadius="md" justify="space-between">
                 <Text fontWeight="bold" fontFamily="monospace" fontSize="lg">{createdPassword}</Text>
                 <Button size="sm" onClick={handleCopyPassword} leftIcon={<MdContentCopy />}>Copiar</Button>

@@ -26,8 +26,12 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   Callback: 'Falha ao concluir a autenticacao.',
   OAuthAccountNotLinked: 'Esta conta nao esta vinculada corretamente.',
   SessionRequired: 'Sua sessao expirou. Tente entrar novamente.',
+  AccessDenied: 'Este painel e restrito a colaboradores.',
   Default: 'Nao foi possivel concluir o login.',
 };
+
+const FORBIDDEN_MESSAGE =
+  'Este painel e restrito a colaboradores. Sua conta nao tem esse acesso — procure um administrador.';
 
 function LoginForm() {
   const { data: session, status } = useSession();
@@ -35,7 +39,13 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const error = searchParams.get('error');
-  const errorMessage = error ? LOGIN_ERROR_MESSAGES[error] || LOGIN_ERROR_MESSAGES.Default : null;
+  // `forbidden=1` vem do gate de colaborador; merece um texto proprio, nao o erro generico.
+  const isForbidden = searchParams.get('forbidden') === '1';
+  const errorMessage = isForbidden
+    ? FORBIDDEN_MESSAGE
+    : error
+      ? LOGIN_ERROR_MESSAGES[error] || LOGIN_ERROR_MESSAGES.Default
+      : null;
 
   useEffect(() => {
     if (status === 'authenticated') {
