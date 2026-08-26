@@ -33,8 +33,9 @@ export async function fetchBackendJson<T>(
       Authorization: `Bearer ${accessToken}`,
     },
     signal: AbortSignal.timeout(timeoutMs),
-    cache: revalidateSeconds ? 'force-cache' : 'no-store',
-    next: revalidateSeconds ? { revalidate: revalidateSeconds } : undefined,
+    ...(revalidateSeconds !== undefined
+      ? { next: { revalidate: revalidateSeconds } }
+      : { cache: 'no-store' as const }),
   });
 
   const body = await response.json().catch(() => null);

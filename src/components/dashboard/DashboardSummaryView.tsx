@@ -36,7 +36,9 @@ import {
   YAxis,
 } from 'recharts';
 import type { ReactNode } from 'react';
+import type { Meeting } from '@/services/meetingService';
 import type { DashboardSummary } from '@/types/dashboard';
+import { MeetingsCalendar, type MeetingCalendarLabels } from './MeetingsCalendar';
 
 const CHART_COLORS = ['#FDA91E', '#4CAF50', '#2196F3', '#FF7043', '#AB47BC', '#26A69A'];
 
@@ -91,7 +93,17 @@ function ChartCard({
   );
 }
 
-export function DashboardSummaryView({ summary }: { summary: DashboardSummary }) {
+export function DashboardSummaryView({
+  summary,
+  meetings,
+  meetingLabels,
+  meetingsUnavailable,
+}: {
+  summary: DashboardSummary;
+  meetings: Meeting[];
+  meetingLabels: MeetingCalendarLabels;
+  meetingsUnavailable?: boolean;
+}) {
   const hasMonthlyChartData = summary.monthlyEnrollments.some((item) =>
     summary.monthlyPlanSeries.some((planName) => Number(item[planName] || 0) > 0)
   );
@@ -126,6 +138,12 @@ export function DashboardSummaryView({ summary }: { summary: DashboardSummary })
           </GridItem>
         ))}
       </Grid>
+
+      <MeetingsCalendar
+        meetings={meetings}
+        labels={meetingLabels}
+        unavailable={meetingsUnavailable}
+      />
 
       <Grid templateColumns={{ base: '1fr', xl: '1.2fr 1fr' }} gap={6}>
         <GridItem>
