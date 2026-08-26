@@ -33,7 +33,6 @@ import {
   TabPanels,
   Tab,
   TabPanel,
-  Tooltip as ChakraTooltip,
   Stat,
   StatLabel,
   StatNumber,
@@ -41,9 +40,7 @@ import {
   GridItem,
 } from '@chakra-ui/react';
 import {
-  MdAdd,
   MdDelete,
-  MdAttachMoney,
   MdTrendingUp,
   MdTrendingDown,
   MdSettings,
@@ -75,6 +72,43 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const getApiErrorMessage = (error: unknown) => {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return '';
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  return typeof response?.data?.message === 'string' ? response.data.message : '';
+};
+
+const getLocalDateInputValue = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+interface EditTransactionForm {
+  amount: string;
+  discount: string;
+  categoryId: string;
+  studentId: string;
+  responsibleUserId: string;
+  observations: string;
+  transactionDate: string;
+}
+
+const EMPTY_EDIT_FORM: EditTransactionForm = {
+  amount: '',
+  discount: '',
+  categoryId: '',
+  studentId: '',
+  responsibleUserId: '',
+  observations: '',
+  transactionDate: '',
+};
+
 export default function CashFlowPage() {
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
   const [categories, setCategories] = useState<CashCategory[]>([]);
@@ -86,10 +120,12 @@ export default function CashFlowPage() {
   // Modals disclosure
   const { isOpen: isEntryOpen, onOpen: onEntryOpen, onClose: onEntryClose } = useDisclosure();
   const { isOpen: isExitOpen, onOpen: onExitOpen, onClose: onExitClose } = useDisclosure();
+  const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isCategoryOpen, onOpen: onCategoryOpen, onClose: onCategoryClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
-  // Selected for delete
+  // Selected transactions
+  const [transactionToEdit, setTransactionToEdit] = useState<CashTransaction | null>(null);
   const [transactionToDelete, setTransactionToDelete] = useState<CashTransaction | null>(null);
 
   // Form states
@@ -100,7 +136,7 @@ export default function CashFlowPage() {
     studentId: '',
     responsibleUserId: '',
     observations: '',
-    transactionDate: new Date().toISOString().split('T')[0],
+    transactionDate: getLocalDateInputValue(),
   });
 
   const [exitForm, setExitForm] = useState({
@@ -108,8 +144,10 @@ export default function CashFlowPage() {
     categoryId: '',
     responsibleUserId: '',
     observations: '',
-    transactionDate: new Date().toISOString().split('T')[0],
+    transactionDate: getLocalDateInputValue(),
   });
+
+  const [editForm, setEditForm] = useState<EditTransactionForm>(EMPTY_EDIT_FORM);
 
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -120,12 +158,17 @@ export default function CashFlowPage() {
   const [studentSearch, setStudentSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [exitUserSearch, setExitUserSearch] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'ENTRY' | 'EXIT'>('ALL');
+  const [editStudentSearch, setEditStudentSearch] = useState('');
+  const [editUserSearch, setEditUserSearch] = useState('');
+  const [filterType, setFilterType] = useState<'ALL' | TransactionType>('ALL');
+  const [filterCategoryId, setFilterCategoryId] = useState('ALL');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
   const [tableSearch, setTableSearch] = useState('');
 
   const toast = useToast();
   const toastRef = useRef(toast);
-  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
+  useEffect(() => { toastRef.current = toast; }, [toast]);  // toastRef evita loop infinito
 
   // Load everything
   const loadData = useCallback(async () => {
@@ -143,7 +186,7 @@ export default function CashFlowPage() {
       setStudents(studResult.status      === 'fulfilled' ? studResult.value  : []);
       setUsers(usersResult.status        === 'fulfilled' ? usersResult.value : []);
       setSummary(sumResult.status        === 'fulfilled' ? sumResult.value   : { totalEntry: 0, totalExit: 0, balance: 0 });
-    } catch (err) {
+    } catch {
       toastRef.current({ title: 'Erro ao carregar dados do fluxo de caixa', status: 'error', duration: 4000 });
     } finally {
       setIsLoading(false);
@@ -185,9 +228,34 @@ export default function CashFlowPage() {
     });
   }, [users, exitUserSearch]);
 
+  const filteredEditStudents = useMemo(() => {
+    const term = editStudentSearch.toLowerCase();
+    return students.filter(s => (
+      s.user.name?.toLowerCase().includes(term) ||
+      s.user.email?.toLowerCase().includes(term)
+    ));
+  }, [students, editStudentSearch]);
+
+  const filteredEditUsers = useMemo(() => {
+    const term = editUserSearch.toLowerCase();
+    return users.filter(u => (
+      u.name?.toLowerCase().includes(term) ||
+      u.email?.toLowerCase().includes(term)
+    ));
+  }, [users, editUserSearch]);
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       if (filterType !== 'ALL' && t.type !== filterType) {
+        return false;
+      }
+      if (filterCategoryId !== 'ALL' && t.categoryId !== Number(filterCategoryId)) {
+        return false;
+      }
+      if (filterStartDate && t.transactionDate < filterStartDate) {
+        return false;
+      }
+      if (filterEndDate && t.transactionDate > filterEndDate) {
         return false;
       }
       if (tableSearch.trim()) {
@@ -201,7 +269,27 @@ export default function CashFlowPage() {
       }
       return true;
     });
-  }, [transactions, filterType, tableSearch]);
+  }, [transactions, filterType, filterCategoryId, filterStartDate, filterEndDate, tableSearch]);
+
+  const currentMonthSummary = useMemo(() => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+
+    return transactions.reduce((totals, transaction) => {
+      const [year, month] = transaction.transactionDate.split('-').map(Number);
+      if (year !== currentYear || month !== currentMonth) {
+        return totals;
+      }
+
+      if (transaction.type === 'ENTRY') {
+        totals.totalEntry += transaction.amount;
+      } else {
+        totals.totalExit += transaction.amount;
+      }
+      return totals;
+    }, { totalEntry: 0, totalExit: 0 });
+  }, [transactions]);
 
   // Recharts aggregator: groups entries and exits daily
   const chartData = useMemo(() => {
@@ -230,6 +318,78 @@ export default function CashFlowPage() {
 
     return Object.values(groups).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
   }, [transactions]);
+
+  // Transaction editing
+  const handleOpenEdit = (transaction: CashTransaction) => {
+    setTransactionToEdit(transaction);
+    setEditForm({
+      amount: String(transaction.amount),
+      discount: transaction.discount != null ? String(transaction.discount) : '',
+      categoryId: String(transaction.categoryId),
+      studentId: transaction.studentId ?? '',
+      responsibleUserId: transaction.responsibleUserId ?? '',
+      observations: transaction.observations ?? '',
+      transactionDate: transaction.transactionDate,
+    });
+    setEditStudentSearch('');
+    setEditUserSearch('');
+    onEditOpen();
+  };
+
+  const handleCloseEdit = () => {
+    onEditClose();
+    setTransactionToEdit(null);
+    setEditForm(EMPTY_EDIT_FORM);
+    setEditStudentSearch('');
+    setEditUserSearch('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!transactionToEdit) return;
+    if (!editForm.amount || Number(editForm.amount) <= 0) {
+      toastRef.current({ title: 'Valor deve ser maior que zero', status: 'warning' });
+      return;
+    }
+    if (!editForm.categoryId) {
+      toastRef.current({ title: 'Selecione uma categoria', status: 'warning' });
+      return;
+    }
+    if (!editForm.transactionDate) {
+      toastRef.current({ title: 'Informe a data do lançamento', status: 'warning' });
+      return;
+    }
+    if (transactionToEdit.type === 'ENTRY' && !editForm.studentId) {
+      toastRef.current({ title: 'Selecione um estudante', status: 'warning' });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await cashTransactionService.update(transactionToEdit.id, {
+        amount: Number(editForm.amount),
+        categoryId: Number(editForm.categoryId),
+        studentId: transactionToEdit.type === 'ENTRY' ? editForm.studentId : undefined,
+        discount: transactionToEdit.type === 'ENTRY' && editForm.discount
+          ? Number(editForm.discount)
+          : undefined,
+        responsibleUserId: editForm.responsibleUserId || undefined,
+        observations: editForm.observations,
+        transactionDate: editForm.transactionDate,
+      });
+
+      toastRef.current({ title: 'Lançamento atualizado com sucesso', status: 'success' });
+      handleCloseEdit();
+      await loadData();
+    } catch (err: unknown) {
+      toastRef.current({
+        title: 'Erro ao atualizar lançamento',
+        description: getApiErrorMessage(err),
+        status: 'error',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Launch submissions
   const handleSaveEntry = async () => {
@@ -269,13 +429,13 @@ export default function CashFlowPage() {
         studentId: '',
         responsibleUserId: '',
         observations: '',
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: getLocalDateInputValue(),
       });
       setStudentSearch('');
       setUserSearch('');
       loadData();
-    } catch (err: any) {
-      toastRef.current({ title: 'Erro ao salvar entrada', description: err?.response?.data?.message || '', status: 'error' });
+    } catch (err: unknown) {
+      toastRef.current({ title: 'Erro ao salvar entrada', description: getApiErrorMessage(err), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -310,12 +470,12 @@ export default function CashFlowPage() {
         categoryId: '',
         responsibleUserId: '',
         observations: '',
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: getLocalDateInputValue(),
       });
       setExitUserSearch('');
       loadData();
-    } catch (err: any) {
-      toastRef.current({ title: 'Erro ao salvar saída', description: err?.response?.data?.message || '', status: 'error' });
+    } catch (err: unknown) {
+      toastRef.current({ title: 'Erro ao salvar saída', description: getApiErrorMessage(err), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -336,8 +496,8 @@ export default function CashFlowPage() {
       toastRef.current({ title: 'Categoria cadastrada', status: 'success' });
       setCategoryForm({ name: '', description: '' });
       loadData();
-    } catch (err: any) {
-      toastRef.current({ title: 'Erro ao criar categoria', description: err?.response?.data?.message || '', status: 'error' });
+    } catch (err: unknown) {
+      toastRef.current({ title: 'Erro ao criar categoria', description: getApiErrorMessage(err), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -348,10 +508,10 @@ export default function CashFlowPage() {
       await cashCategoryService.delete(id);
       toastRef.current({ title: 'Categoria removida com sucesso', status: 'success' });
       loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toastRef.current({
         title: 'Erro ao remover categoria',
-        description: err?.response?.data?.message || 'A categoria pode estar associada a lançamentos existentes.',
+        description: getApiErrorMessage(err) || 'A categoria pode estar associada a lançamentos existentes.',
         status: 'error',
       });
     }
@@ -365,8 +525,8 @@ export default function CashFlowPage() {
       toastRef.current({ title: 'Lançamento excluído com sucesso', status: 'success' });
       onDeleteClose();
       loadData();
-    } catch (err: any) {
-      toastRef.current({ title: 'Erro ao excluir lançamento', description: err?.response?.data?.message || '', status: 'error' });
+    } catch (err: unknown) {
+      toastRef.current({ title: 'Erro ao excluir lançamento', description: getApiErrorMessage(err), status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -492,9 +652,9 @@ export default function CashFlowPage() {
           <GridItem>
             <Box bg="white" borderRadius="md" boxShadow="sm" p={5}>
               <Stat>
-                <StatLabel color="gray.500" fontSize="sm">Total de Entradas</StatLabel>
+                <StatLabel color="gray.500" fontSize="sm">Entradas no mês atual</StatLabel>
                 <StatNumber color="green.600" mt={1} fontSize="2xl" fontWeight="bold">
-                  {formatCurrency(summary.totalEntry)}
+                  {formatCurrency(currentMonthSummary.totalEntry)}
                 </StatNumber>
               </Stat>
             </Box>
@@ -503,9 +663,9 @@ export default function CashFlowPage() {
           <GridItem>
             <Box bg="white" borderRadius="md" boxShadow="sm" p={5}>
               <Stat>
-                <StatLabel color="gray.500" fontSize="sm">Total de Saídas</StatLabel>
+                <StatLabel color="gray.500" fontSize="sm">Saídas no mês atual</StatLabel>
                 <StatNumber color="red.600" mt={1} fontSize="2xl" fontWeight="bold">
-                  {formatCurrency(summary.totalExit)}
+                  {formatCurrency(currentMonthSummary.totalExit)}
                 </StatNumber>
               </Stat>
             </Box>
@@ -560,7 +720,7 @@ export default function CashFlowPage() {
                     tickFormatter={(val) => `R$ ${val}`}
                   />
                   <RechartsTooltip
-                    formatter={(value: any) => [formatCurrency(Number(value)), '']}
+                    formatter={(value) => [formatCurrency(Number(value)), '']}
                     contentStyle={{
                       backgroundColor: 'rgba(255, 255, 255, 0.95)',
                       borderRadius: '12px',
@@ -593,40 +753,80 @@ export default function CashFlowPage() {
 
         {/* Transactions Table Log */}
         <Box bg="white" borderRadius="md" boxShadow="sm" p={5}>
-          <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }} gap={4} mb={6}>
+          <Flex direction="column" gap={4} mb={6}>
             <Heading size="md" color="gray.700">
               Histórico de Lançamentos
             </Heading>
-            
-            <HStack spacing={3} align="center">
-              <FormControl w={{ base: 'full', md: '200px' }}>
+
+            <SimpleGrid columns={{ base: 1, md: 2, xl: 5 }} spacing={3} alignItems="end">
+              <FormControl>
+                <FormLabel fontSize="xs" color="gray.600" mb={1}>Tipo</FormLabel>
                 <Select
                   size="sm"
                   value={filterType}
-                  onChange={(e) => setFilterType(e.target.value as any)}
+                  onChange={(e) => setFilterType(e.target.value as 'ALL' | TransactionType)}
                 >
                   <option value="ALL">Todos os Tipos</option>
                   <option value="ENTRY">Apenas Entradas</option>
                   <option value="EXIT">Apenas Saídas</option>
                 </Select>
               </FormControl>
-              
-              <HStack spacing={2} border="1px solid" borderColor="gray.200" borderRadius="md" px={3} py={1} w={{ base: 'full', md: '260px' }}>
-                <Icon as={MdSearch} color="gray.400" />
-                <Input
-                  variant="unstyled"
+
+              <FormControl>
+                <FormLabel fontSize="xs" color="gray.600" mb={1}>Categoria</FormLabel>
+                <Select
                   size="sm"
-                  placeholder="Buscar no histórico..."
-                  value={tableSearch}
-                  onChange={(e) => setTableSearch(e.target.value)}
+                  value={filterCategoryId}
+                  onChange={(e) => setFilterCategoryId(e.target.value)}
+                >
+                  <option value="ALL">Todas as Categorias</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" color="gray.600" mb={1}>Data inicial</FormLabel>
+                <Input
+                  type="date"
+                  size="sm"
+                  max={filterEndDate || undefined}
+                  value={filterStartDate}
+                  onChange={(e) => setFilterStartDate(e.target.value)}
                 />
-              </HStack>
-            </HStack>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" color="gray.600" mb={1}>Data final</FormLabel>
+                <Input
+                  type="date"
+                  size="sm"
+                  min={filterStartDate || undefined}
+                  value={filterEndDate}
+                  onChange={(e) => setFilterEndDate(e.target.value)}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="xs" color="gray.600" mb={1}>Busca</FormLabel>
+                <HStack spacing={2} border="1px solid" borderColor="gray.200" borderRadius="md" px={3} h="32px">
+                  <Icon as={MdSearch} color="gray.400" />
+                  <Input
+                    variant="unstyled"
+                    size="sm"
+                    placeholder="Buscar no histórico..."
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                  />
+                </HStack>
+              </FormControl>
+            </SimpleGrid>
           </Flex>
           <DataTable
             columns={columns}
             data={filteredTransactions}
-            onEdit={undefined} // Disable direct edits to preserve history integrity
+            onEdit={handleOpenEdit}
             onDelete={(t) => {
               setTransactionToDelete(t);
               onDeleteOpen();
@@ -847,6 +1047,158 @@ export default function CashFlowPage() {
             </Button>
             <Button colorScheme="red" onClick={handleSaveExit} isLoading={isLoading}>
               Registrar Saída
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Modal: Editar lançamento */}
+      <Modal isOpen={isEditOpen} onClose={handleCloseEdit} size="lg" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent borderRadius="xl">
+          <ModalHeader
+            color={transactionToEdit?.type === 'ENTRY' ? 'green.700' : 'red.700'}
+            fontWeight="bold"
+          >
+            Editar Lançamento
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={4}>
+              <FormControl>
+                <FormLabel>Tipo</FormLabel>
+                <Badge
+                  colorScheme={transactionToEdit?.type === 'ENTRY' ? 'green' : 'red'}
+                  px={3}
+                  py={1}
+                  borderRadius="full"
+                >
+                  {transactionToEdit?.type === 'ENTRY' ? 'Entrada' : 'Saída'}
+                </Badge>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  O tipo do lançamento não pode ser alterado.
+                </Text>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Valor (R$)</FormLabel>
+                <Input
+                  type="number"
+                  placeholder="0,00"
+                  step="0.01"
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                />
+              </FormControl>
+
+              {transactionToEdit?.type === 'ENTRY' && (
+                <FormControl>
+                  <FormLabel>Desconto (R$ - opcional)</FormLabel>
+                  <Input
+                    type="number"
+                    placeholder="0,00"
+                    step="0.01"
+                    value={editForm.discount}
+                    onChange={(e) => setEditForm({ ...editForm, discount: e.target.value })}
+                  />
+                </FormControl>
+              )}
+
+              <FormControl isRequired>
+                <FormLabel>Categoria</FormLabel>
+                <Select
+                  placeholder="Selecione a categoria"
+                  value={editForm.categoryId}
+                  onChange={(e) => setEditForm({ ...editForm, categoryId: e.target.value })}
+                >
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              {transactionToEdit?.type === 'ENTRY' && (
+                <>
+                  <Divider py={1} />
+                  <FormControl isRequired>
+                    <FormLabel>Estudante Associado</FormLabel>
+                    <HStack mb={2}>
+                      <Icon as={MdSearch} color="gray.400" />
+                      <Input
+                        size="sm"
+                        placeholder="Filtrar estudante por nome/email..."
+                        value={editStudentSearch}
+                        onChange={(e) => setEditStudentSearch(e.target.value)}
+                      />
+                    </HStack>
+                    <Select
+                      placeholder="Selecione o estudante"
+                      value={editForm.studentId}
+                      onChange={(e) => setEditForm({ ...editForm, studentId: e.target.value })}
+                    >
+                      {filteredEditStudents.map((student) => (
+                        <option key={student.user.id} value={student.user.id}>
+                          {student.user.name} ({student.user.email})
+                        </option>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </>
+              )}
+
+              <FormControl>
+                <FormLabel>Usuário Responsável (opcional)</FormLabel>
+                <HStack mb={2}>
+                  <Icon as={MdSearch} color="gray.400" />
+                  <Input
+                    size="sm"
+                    placeholder="Filtrar responsável por nome/email..."
+                    value={editUserSearch}
+                    onChange={(e) => setEditUserSearch(e.target.value)}
+                  />
+                </HStack>
+                <Select
+                  placeholder="Selecione o usuário responsável"
+                  value={editForm.responsibleUserId}
+                  onChange={(e) => setEditForm({ ...editForm, responsibleUserId: e.target.value })}
+                >
+                  {filteredEditUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </option>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Data do Lançamento</FormLabel>
+                <Input
+                  type="date"
+                  value={editForm.transactionDate}
+                  onChange={(e) => setEditForm({ ...editForm, transactionDate: e.target.value })}
+                />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Observações</FormLabel>
+                <Textarea
+                  placeholder="Adicione notas adicionais sobre a transação..."
+                  value={editForm.observations}
+                  onChange={(e) => setEditForm({ ...editForm, observations: e.target.value })}
+                />
+              </FormControl>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={handleCloseEdit} isDisabled={isLoading}>
+              Cancelar
+            </Button>
+            <Button
+              colorScheme={transactionToEdit?.type === 'ENTRY' ? 'green' : 'red'}
+              onClick={handleSaveEdit}
+              isLoading={isLoading}
+            >
+              Salvar alterações
             </Button>
           </ModalFooter>
         </ModalContent>

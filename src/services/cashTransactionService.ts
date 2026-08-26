@@ -35,6 +35,13 @@ export interface CreateCashTransactionPayload {
   transactionDate?: string;
 }
 
+export type UpdateCashTransactionPayload = Omit<
+  CreateCashTransactionPayload,
+  'type' | 'transactionDate'
+> & {
+  transactionDate: string;
+};
+
 export const cashTransactionService = {
   getAll: async (): Promise<CashTransaction[]> => {
     const response = await api.get('/cash-transactions');
@@ -46,6 +53,10 @@ export const cashTransactionService = {
   },
   create: async (data: CreateCashTransactionPayload): Promise<CashTransaction> => {
     const response = await api.post('/cash-transactions', data);
+    return response.data;
+  },
+  update: async (id: string, data: UpdateCashTransactionPayload): Promise<CashTransaction> => {
+    const response = await api.put(`/cash-transactions/${id}`, data);
     return response.data;
   },
   delete: async (id: string): Promise<void> => {
