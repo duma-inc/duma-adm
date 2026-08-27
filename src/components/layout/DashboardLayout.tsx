@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, Flex, Button, Menu, MenuButton, MenuList, MenuItem, HStack, Icon, Text, Portal, Avatar, Spinner } from '@chakra-ui/react';
-import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications, MdSlideshow, MdSportsEsports, MdStyle } from 'react-icons/md';
+import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications, MdSlideshow, MdSportsEsports, MdStyle, MdEmail, MdCampaign } from 'react-icons/md';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -186,6 +186,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   </MenuItem>
                   <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdNotifications} />} onClick={() => router.push('/domains/notifications')}>
                     Notificações
+                  </MenuItem>
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdEmail} />} onClick={() => router.push('/domains/email-templates')}>
+                    Templates de E-mail
+                  </MenuItem>
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdCampaign} />} onClick={() => router.push('/domains/communications')}>
+                    Comunicações
                   </MenuItem>
                 </MenuList>
               </Portal>
