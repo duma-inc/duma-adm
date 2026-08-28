@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -17,6 +17,7 @@ import {
   ModalCloseButton,
   FormControl,
   FormLabel,
+  FormHelperText,
   Input,
   Select,
   Textarea,
@@ -24,12 +25,45 @@ import {
   Switch,
   HStack,
 } from '@chakra-ui/react';
+import axios from 'axios';
 import { MdAdd } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { stageService, Stage } from '@/services/stageService';
 import { skillService, Skill } from '@/services/skillService';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+
+/*
+ * A tabela stages tem unicidade por skill em (name), (slug) e (order_index). O backend deixa a
+ * violacao subir crua do Postgres, entao o admin recebia so o 409 com o texto do Hibernate.
+ * Traduz pelo nome da constraint para a mensagem ficar acionavel.
+ */
+const UNIQUE_CONSTRAINT_MESSAGES: Record<string, string> = {
+  stages_name_skill_unique: 'Já existe uma trilha com esse nome nesta skill.',
+  stages_slug_skill_unique: 'Já existe uma trilha com esse slug nesta skill.',
+  stages_order_index_skill_unique: 'Já existe uma trilha com essa ordem nesta skill.',
+};
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError(error)) {
+    const responseMessage = error.response?.data?.message;
+    if (typeof responseMessage === 'string' && responseMessage.trim()) {
+      const violated = Object.keys(UNIQUE_CONSTRAINT_MESSAGES).find((constraint) =>
+        responseMessage.includes(constraint),
+      );
+      if (violated) {
+        return UNIQUE_CONSTRAINT_MESSAGES[violated];
+      }
+      return responseMessage;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
 
 export default function StagesPage() {
   const [stages, setStages] = useState<Stage[]>([]);
@@ -92,22 +126,87 @@ export default function StagesPage() {
     onFormOpen();
   };
 
+  /* Trilhas da skill selecionada, sem a que esta sendo editada: base das checagens de unicidade. */
+  const siblingStages = useMemo(() => {
+    const skillId = Number(formData.skillId);
+    if (!skillId) return [];
+    return stages.filter((stage) => stage.skillId === skillId && stage.id !== editingStage?.id);
+  }, [stages, formData.skillId, editingStage]);
+
+  /* Proxima ordem livre na skill, usada como sugestao ao criar. */
+  const nextOrderIndex = useMemo(() => {
+    const usedOrders = siblingStages
+      .map((stage) => stage.orderIndex)
+      .filter((order): order is number => typeof order === 'number');
+    return usedOrders.length ? Math.max(...usedOrders) + 1 : 1;
+  }, [siblingStages]);
+
+  const handleSelectSkill = (skillId: string) => {
+    setFormData((previous) => {
+      const next = { ...previous, skillId };
+      // So preenche a ordem quando o campo esta vazio, para nao sobrescrever o que o admin digitou.
+      if (!editingStage && skillId && !previous.orderIndex) {
+        const usedOrders = stages
+          .filter((stage) => stage.skillId === Number(skillId))
+          .map((stage) => stage.orderIndex)
+          .filter((order): order is number => typeof order === 'number');
+        next.orderIndex = String(usedOrders.length ? Math.max(...usedOrders) + 1 : 1);
+      }
+      return next;
+    });
+  };
+
   const handleSave = async () => {
     if (!formData.skillId) {
       toast({ title: 'Skill é obrigatória', status: 'warning' });
       return;
     }
 
+    const name = formData.name.trim();
+    const slug = formData.slug.trim();
+    const shortDescription = formData.shortDescription.trim();
+    const orderIndex = Number(formData.orderIndex);
+
+    if (!name || !slug || !shortDescription) {
+      toast({ title: 'Nome, slug e descrição curta são obrigatórios', status: 'warning' });
+      return;
+    }
+    // order_index e NOT NULL no banco; sem isso o backend estouraria com erro de servidor.
+    if (!formData.orderIndex.trim() || !Number.isInteger(orderIndex) || orderIndex < 0) {
+      toast({ title: 'Informe uma ordem válida (número inteiro)', status: 'warning' });
+      return;
+    }
+
+    // Espelha as constraints unicas de stages para explicar o conflito antes do 409 do backend.
+    if (siblingStages.some((stage) => stage.name?.trim().toLowerCase() === name.toLowerCase())) {
+      toast({ title: UNIQUE_CONSTRAINT_MESSAGES.stages_name_skill_unique, status: 'warning' });
+      return;
+    }
+    if (siblingStages.some((stage) => stage.slug?.trim().toLowerCase() === slug.toLowerCase())) {
+      toast({ title: UNIQUE_CONSTRAINT_MESSAGES.stages_slug_skill_unique, status: 'warning' });
+      return;
+    }
+    const orderConflict = siblingStages.find((stage) => stage.orderIndex === orderIndex);
+    if (orderConflict) {
+      toast({
+        title: UNIQUE_CONSTRAINT_MESSAGES.stages_order_index_skill_unique,
+        description: `A ordem ${orderIndex} já é usada por "${orderConflict.name}". A próxima livre é ${nextOrderIndex}.`,
+        status: 'warning',
+        duration: 6000,
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       const payload: Partial<Stage> = {
-        name: formData.name,
-        slug: formData.slug,
-        shortDescription: formData.shortDescription,
+        name,
+        slug,
+        shortDescription,
         fullDescription: formData.fullDescription || undefined,
         iconUrl: formData.iconUrl || undefined,
         color: formData.color || undefined,
-        orderIndex: formData.orderIndex ? Number(formData.orderIndex) : undefined,
+        orderIndex,
         isActive: formData.isActive,
         skillId: Number(formData.skillId),
       };
@@ -121,7 +220,12 @@ export default function StagesPage() {
       onFormClose();
       loadStages();
     } catch (error) {
-      toast({ title: 'Erro ao salvar', status: 'error' });
+      toast({
+        title: 'Erro ao salvar',
+        description: getErrorMessage(error, 'Não foi possível salvar a trilha.'),
+        status: 'error',
+        duration: 6000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -136,7 +240,12 @@ export default function StagesPage() {
       onDeleteClose();
       loadStages();
     } catch (error) {
-      toast({ title: 'Erro ao excluir', status: 'error' });
+      toast({
+        title: 'Erro ao excluir',
+        description: getErrorMessage(error, 'A trilha pode estar vinculada a lições, módulos ou turmas.'),
+        status: 'error',
+        duration: 6000,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -194,7 +303,7 @@ export default function StagesPage() {
                 <Select
                   placeholder="Selecione a skill"
                   value={formData.skillId}
-                  onChange={(e) => setFormData({ ...formData, skillId: e.target.value })}
+                  onChange={(e) => handleSelectSkill(e.target.value)}
                 >
                   {skills.map((skill) => (
                     <option key={skill.id} value={skill.id}>
@@ -208,9 +317,14 @@ export default function StagesPage() {
                   <FormLabel>Descrição Curta</FormLabel>
                   <Input value={formData.shortDescription} onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })} />
                 </FormControl>
-                <FormControl>
+                <FormControl isRequired>
                   <FormLabel>Ordem (Index)</FormLabel>
-                  <Input type="number" value={formData.orderIndex} onChange={(e) => setFormData({ ...formData, orderIndex: e.target.value })} />
+                  <Input type="number" min={0} value={formData.orderIndex} onChange={(e) => setFormData({ ...formData, orderIndex: e.target.value })} />
+                  {formData.skillId && (
+                    <FormHelperText fontSize="xs">
+                      Deve ser única dentro da skill. Próxima livre: {nextOrderIndex}.
+                    </FormHelperText>
+                  )}
                 </FormControl>
               </HStack>
               <HStack w="full" spacing={4}>
