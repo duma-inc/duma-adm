@@ -103,39 +103,32 @@ const getMeetingColors = (type: MeetingType) =>
 const getMeetingEnd = (meeting: Meeting) => {
   if (!meeting.duration) return undefined;
 
-  const localDateTime = meeting.scheduledStart.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/
-  );
-  if (!localDateTime) return undefined;
+  const start = new Date(meeting.scheduledStart);
+  if (Number.isNaN(start.getTime())) return undefined;
 
-  const [, year, month, day, hour, minute, second = '00'] = localDateTime;
-  const end = new Date(Date.UTC(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-    Number(hour),
-    Number(minute) + DURATION_IN_MINUTES[meeting.duration],
-    Number(second)
-  ));
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${end.getUTCFullYear()}-${pad(end.getUTCMonth() + 1)}-${pad(end.getUTCDate())}`
-    + `T${pad(end.getUTCHours())}:${pad(end.getUTCMinutes())}:${pad(end.getUTCSeconds())}`;
+  return new Date(
+    start.getTime() + DURATION_IN_MINUTES[meeting.duration] * 60_000
+  ).toISOString();
 };
 
 const getLocalTime = (value: string) => {
-  const match = value.match(/T(\d{2}):(\d{2})/);
-  return match ? `${match[1]}:${match[2]}` : '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const formatLocalDateTime = (value: string) => {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (match) {
-    const [, year, month, day, hour, minute] = match;
-    return `${day}/${month}/${year} às ${hour}:${minute}`;
-  }
-
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
 };
 
 const resolveLabel = (
