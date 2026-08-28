@@ -158,6 +158,18 @@ const resolveMeetingId = (meeting?: Partial<Meeting> | null) => {
   return meeting.id ?? meeting.meetingId ?? meeting.uuid;
 };
 
+/** Converte um instante ISO para o valor civil esperado por datetime-local. */
+const formatDateTimeForInput = (value?: string) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+};
+
+/** datetime-local representa o fuso do navegador; a API recebe sempre um instante UTC. */
+const toInstant = (localDateTime: string) => new Date(localDateTime).toISOString();
+
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<MeetingRow[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -225,8 +237,8 @@ export default function MeetingsPage() {
     const matchLesson = !filters.lessonId || String(meeting.lessonId) === filters.lessonId;
     const matchPlan = !filters.planId || String(meeting.planId) === filters.planId;
     const matchStatus = filters.status === 'ALL' || meeting.status === filters.status;
-    // scheduledStart e LocalDateTime sem timezone: comparar a string crua evita deslocamento de fuso.
-    const matchDate = !filters.date || (meeting.scheduledStart || '').slice(0, 10) === filters.date;
+    const localMeetingDate = formatDateTimeForInput(meeting.scheduledStart).slice(0, 10);
+    const matchDate = !filters.date || localMeetingDate === filters.date;
     return matchSkill && matchStage && matchLesson && matchPlan && matchStatus && matchDate;
   });
 
@@ -266,11 +278,6 @@ export default function MeetingsPage() {
     return plans.find((item) => Number(item.id) === planId)?.nome || planId;
   };
 
-  const formatDateTimeForInput = (value?: string) => {
-    if (!value) return '';
-    return value.slice(0, 16);
-  };
-
   const formatDateTime = (value: string) =>
     new Date(value).toLocaleString('pt-BR');
 
@@ -298,7 +305,7 @@ export default function MeetingsPage() {
     stageId: data.stageId ? Number(data.stageId) : null,
     lessonId: data.lessonId ? normalizeLessonId(data.lessonId) : null,
     planId: data.planId ? Number(data.planId) : null,
-    scheduledStart: data.scheduledStart,
+    scheduledStart: toInstant(data.scheduledStart),
     // Ao contrario da palavra-chave, null aqui limpa mesmo: e como se volta ao tempo livre.
     duration: data.duration || null,
     meetingUrl: data.meetingUrl.trim() || undefined,
@@ -679,6 +686,7 @@ export default function MeetingsPage() {
             value={data.scheduledStart}
             onChange={(e) => onChange('scheduledStart', e.target.value)}
           />
+          <FormHelperText>Horário no fuso deste dispositivo; será salvo como UTC.</FormHelperText>
         </FormControl>
         <FormControl>
           <FormLabel>Duração</FormLabel>
