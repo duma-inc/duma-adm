@@ -52,6 +52,7 @@ const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
   ESSAY: 'Dissertativa',
   SPEAKING: 'Fala',
   LISTENING: 'Escuta',
+  ORDER: 'Ordenar palavras',
 };
 
 const DEFAULT_FILTER_TYPES: ExerciseType[] = ['SHORT_ANSWER', 'ESSAY'];

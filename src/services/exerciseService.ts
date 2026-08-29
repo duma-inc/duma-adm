@@ -9,7 +9,8 @@ export type ExerciseType =
   | 'SHORT_ANSWER'
   | 'ESSAY'
   | 'SPEAKING'
-  | 'LISTENING';
+  | 'LISTENING'
+  | 'ORDER';
 
 /**
  * Tipos dissertativos: o aluno escreve livremente e a correcao e feita pela IA,
@@ -19,6 +20,39 @@ export type ExerciseType =
 export const TYPES_WITHOUT_OPTIONS: ExerciseType[] = ['ESSAY', 'SHORT_ANSWER'];
 
 export const requiresOptions = (type: ExerciseType) => !TYPES_WITHOUT_OPTIONS.includes(type);
+
+/**
+ * ORDER (ordenar palavras) nao ganhou campo proprio no schema: o gabarito mora no
+ * mesmo `options` dos outros tipos, com o `matchKey` carregando a posicao —
+ * o mesmo overload que MATCHING ja faz com o pareamento.
+ *
+ *   { text: 'He',   matchKey: '1',   isCorrect: true }  <- palavra na posicao 1
+ *   { text: 'is',   matchKey: '2',   isCorrect: true }
+ *   { text: 'He is with his wife in Paris', matchKey: 'ALT', isCorrect: true }
+ *
+ * Vantagem de reusar `matchKey`: ele ja entra no `contentHash` do backend, entao a
+ * deduplicacao distingue de graca duas frases com as mesmas palavras em ordens
+ * diferentes ("I am happy" x "Am I happy").
+ */
+export const ORDER_ALT_MATCH_KEY = 'ALT';
+
+export interface ParsedOrderOptions {
+  /** Palavras do gabarito, ja ordenadas pela posicao. */
+  tokens: ExerciseOption[];
+  /** Ordens alternativas aceitas (frases completas). */
+  alternatives: ExerciseOption[];
+}
+
+/** Separa as opcoes de um ORDER entre palavras (matchKey numerico) e alternativas. */
+export const parseOrderOptions = (options: ExerciseOption[] = []): ParsedOrderOptions => {
+  const tokens = options
+    .filter((option) => /^\d+$/.test((option.matchKey ?? '').trim()))
+    .sort((a, b) => Number(a.matchKey) - Number(b.matchKey));
+  const alternatives = options.filter(
+    (option) => (option.matchKey ?? '').trim().toUpperCase() === ORDER_ALT_MATCH_KEY
+  );
+  return { tokens, alternatives };
+};
 
 export type ExerciseDifficulty = 'EASY' | 'MODERATE' | 'HARD';
 export type ExerciseLanguage = string; // ex: "en", "pt", "pt-BR", "en-US"

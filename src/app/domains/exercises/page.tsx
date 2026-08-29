@@ -39,7 +39,7 @@ import {
   InputGroup,
   InputLeftElement,
 } from '@chakra-ui/react';
-import { MdAdd, MdDelete, MdUploadFile, MdSearch } from 'react-icons/md';
+import { MdAdd, MdDelete, MdUploadFile, MdSearch, MdArrowUpward, MdArrowDownward, MdAutoFixHigh } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import {
@@ -52,6 +52,8 @@ import {
   ExerciseStatus,
   ExerciseReusePolicy,
   requiresOptions,
+  parseOrderOptions,
+  ORDER_ALT_MATCH_KEY,
 } from '@/services/exerciseService';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { skillService, Skill } from '@/services/skillService';
@@ -80,6 +82,7 @@ const TYPE_LABELS: Record<ExerciseType, string> = {
   ESSAY: 'Redação',
   SPEAKING: 'Fala',
   LISTENING: 'Escuta',
+  ORDER: 'Ordenar Palavras',
 };
 
 const ORIGIN_LABELS: Record<ExerciseOrigin, string> = {
@@ -152,6 +155,16 @@ export default function ExercisesPage() {
   const [selectedStageId, setSelectedStageId] = useState('ALL');
   const [selectedSkillId, setSelectedSkillId] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  // Rascunho da frase do ORDER. Fica fora do formData porque e so um atalho de
+  // digitacao: a fonte da verdade continua sendo a lista de palavras.
+  const [orderSentenceDraft, setOrderSentenceDraft] = useState('');
+  /**
+   * ORDER: ordens alternativas aceitas. Ficam separadas das palavras enquanto o
+   * form esta aberto — no payload as duas listas viram um `options` so, as palavras
+   * com matchKey "1".."N" e as alternativas com "ALT". Separar evita que uma frase
+   * inteira acabe no banco de palavras do aluno.
+   */
+  const [orderAlternatives, setOrderAlternatives] = useState<string[]>([]);
   const [batchJsonText, setBatchJsonText] = useState('');
   const [batchFileName, setBatchFileName] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -180,6 +193,16 @@ export default function ExercisesPage() {
   };
 
   useEffect(() => { loadAll(); }, []);
+
+  // A lista de palavras e a fonte da verdade: se ela muda por outro caminho
+  // (reordenar, editar, remover), o rascunho da frase acompanha. Digitar no
+  // textarea nao mexe em `options`, entao isto nao atrapalha a digitacao.
+  const orderWords = formData.type === 'ORDER'
+    ? formData.options.map(opt => opt.text).join(' ')
+    : '';
+  useEffect(() => {
+    if (formData.type === 'ORDER') setOrderSentenceDraft(orderWords);
+  }, [orderWords, formData.type]);
 
   // --- Opções ---
   const handleOptionChange = (index: number, field: keyof ExerciseOption, value: string | boolean) => {
@@ -210,10 +233,45 @@ export default function ExercisesPage() {
     setFormData({ ...formData, options: formData.options.filter((_, i) => i !== index) });
   };
 
+  // --- ORDER (ordenar palavras) ---
+  // No form as palavras ficam em `formData.options` ja na ordem correta: a posicao
+  // e o indice da linha, e o matchKey ("1".."N") so e escrito no handleSave. Assim
+  // nao da para o operador criar posicao repetida ou buraco na sequencia.
+  const handleOrderMoveWord = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= formData.options.length) return;
+    const updated = [...formData.options];
+    [updated[index], updated[target]] = [updated[target], updated[index]];
+    setFormData({ ...formData, options: updated });
+  };
+
+  /** Quebra a frase correta em palavras, uma opcao por palavra. */
+  const handleOrderSplitSentence = (sentence: string) => {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    if (words.length < 2) {
+      toast({ title: 'Escreva a frase completa (pelo menos 2 palavras)', status: 'warning' });
+      return;
+    }
+    setFormData({
+      ...formData,
+      options: words.map((word) => ({ text: word, matchKey: '', isCorrect: true })),
+    });
+  };
+
+  const handleAddAlternative = () => setOrderAlternatives([...orderAlternatives, '']);
+
+  const handleAlternativeChange = (index: number, value: string) =>
+    setOrderAlternatives(orderAlternatives.map((alt, i) => (i === index ? value : alt)));
+
+  const handleRemoveAlternative = (index: number) =>
+    setOrderAlternatives(orderAlternatives.filter((_, i) => i !== index));
+
   // --- CRUD ---
   const handleOpenForm = (exercise?: Exercise) => {
     if (exercise) {
       setEditingExercise(exercise);
+      // ORDER guarda palavras e alternativas no mesmo `options`; o form as separa.
+      const parsedOrder = exercise.type === 'ORDER' ? parseOrderOptions(exercise.options) : null;
       setFormData({
         lessonId: exercise.lessonId || '',
         skillId: exercise.skillId || '',
@@ -227,11 +285,16 @@ export default function ExercisesPage() {
         origin: exercise.origin,
         status: exercise.status || 'ACTIVE',
         reusePolicy: exercise.reusePolicy || 'GLOBAL_REUSABLE',
-        options: exercise.options?.length ? exercise.options : INITIAL_FORM.options,
+        options: parsedOrder
+          ? parsedOrder.tokens
+          : (exercise.options?.length ? exercise.options : INITIAL_FORM.options),
       });
+      setOrderAlternatives(parsedOrder ? parsedOrder.alternatives.map((alt) => alt.text) : []);
     } else {
       setEditingExercise(null);
       setFormData(INITIAL_FORM);
+      setOrderSentenceDraft('');
+      setOrderAlternatives([]);
     }
     onFormOpen();
   };
@@ -241,7 +304,24 @@ export default function ExercisesPage() {
       toast({ title: 'Descrição é obrigatória', status: 'warning' });
       return;
     }
-    if (showOptions) {
+    if (showOrder) {
+      if (formData.options.length < 2) {
+        toast({ title: 'A frase precisa de pelo menos 2 palavras', status: 'warning' });
+        return;
+      }
+      if (formData.options.some(o => !o.text.trim())) {
+        toast({ title: 'Preencha todas as palavras', status: 'warning' });
+        return;
+      }
+      if (formData.options.some(o => /\s/.test(o.text.trim()))) {
+        toast({ title: 'Cada linha deve ter uma única palavra', status: 'warning' });
+        return;
+      }
+      if (orderAlternatives.some(alt => !alt.trim())) {
+        toast({ title: 'Remova as ordens alternativas em branco', status: 'warning' });
+        return;
+      }
+    } else if (showOptions) {
       if (!formData.options.some(o => o.isCorrect)) {
         toast({ title: 'Marque pelo menos uma opção como correta', status: 'warning' });
         return;
@@ -254,6 +334,23 @@ export default function ExercisesPage() {
 
     setIsLoading(true);
     try {
+      // ORDER: a posicao vira matchKey aqui, derivada do indice da linha; as
+      // alternativas entram no mesmo array com matchKey "ALT".
+      const orderOptions: ExerciseOption[] = showOrder
+        ? [
+            ...formData.options.map((o, index) => ({
+              ...(o.optionId ? { optionId: o.optionId } : {}),
+              text: o.text.trim(),
+              matchKey: String(index + 1),
+              isCorrect: true,
+            })),
+            ...orderAlternatives
+              .map(alt => alt.trim())
+              .filter(Boolean)
+              .map(alt => ({ text: alt, matchKey: ORDER_ALT_MATCH_KEY, isCorrect: true })),
+          ]
+        : [];
+
       const payload = {
         ...formData,
         stageId: formData.stageId ? Number(formData.stageId) : undefined,
@@ -261,7 +358,9 @@ export default function ExercisesPage() {
         skillId: formData.skillId || undefined,
         translation: formData.translation || undefined,
         explanation: formData.explanation || undefined,
-        options: showOptions
+        options: showOrder
+          ? orderOptions
+          : showOptions
           ? formData.options.map(o => ({
               ...(o.optionId ? { optionId: o.optionId } : {}),
               text: o.text,
@@ -342,6 +441,30 @@ export default function ExercisesPage() {
       const options = exercise.options;
       if (!options?.length) {
         return `${onde} (${TYPE_LABELS[type] ?? type}): informe as opções.`;
+      }
+
+      // ORDER: matchKey carrega a posicao ("1".."N") ou "ALT". A checagem generica
+      // abaixo passaria de graca (todas as opcoes sao corretas), entao valida aqui.
+      if (type === 'ORDER') {
+        const { tokens, alternatives } = parseOrderOptions(options);
+        if (tokens.length < 2) {
+          return `${onde} (Ordenar Palavras): precisa de ao menos 2 palavras com matchKey numérico.`;
+        }
+        if (tokens.length + alternatives.length !== options.length) {
+          return `${onde} (Ordenar Palavras): todo matchKey deve ser um número de posição ou "${ORDER_ALT_MATCH_KEY}".`;
+        }
+        const positions = tokens.map((option) => Number(option.matchKey));
+        if (new Set(positions).size !== positions.length) {
+          return `${onde} (Ordenar Palavras): há posições repetidas em matchKey.`;
+        }
+        const esperado = positions.map((_, i) => i + 1).join(',');
+        if ([...positions].sort((a, b) => a - b).join(',') !== esperado) {
+          return `${onde} (Ordenar Palavras): as posições devem ir de 1 a ${positions.length}, sem buracos.`;
+        }
+        if (alternatives.some((option) => !option.text?.trim())) {
+          return `${onde} (Ordenar Palavras): ordem alternativa sem texto.`;
+        }
+        continue;
       }
       if (options.some((option) => !option.text?.trim())) {
         return `${onde}: todas as opções precisam ter texto.`;
@@ -474,8 +597,11 @@ export default function ExercisesPage() {
   ];
 
   const showMatchKey = formData.type === 'MATCHING';
+  // ORDER tem editor proprio: as palavras sao sempre corretas e a posicao vem da
+  // ordem das linhas, entao a tabela generica de opcoes nao serve.
+  const showOrder = formData.type === 'ORDER';
   // Dissertativos nao tem gabarito: a IA corrige a resposta livre do aluno.
-  const showOptions = requiresOptions(formData.type);
+  const showOptions = requiresOptions(formData.type) && !showOrder;
 
   return (
     <DashboardLayout>
@@ -744,6 +870,147 @@ export default function ExercisesPage() {
 
               <Divider />
 
+              {/* ORDER — o aluno monta a frase arrastando as palavras embaralhadas.
+                  A posição de cada palavra é a ordem das linhas aqui; o matchKey
+                  ("1".."N") é escrito no salvar. */}
+              {showOrder && (
+              <Box>
+                <FormControl mb={4}>
+                  <FormLabel fontSize="sm" color="gray.600">Frase correta</FormLabel>
+                  <HStack align="flex-start">
+                    <Textarea
+                      size="sm"
+                      rows={2}
+                      value={orderSentenceDraft}
+                      onChange={(e) => setOrderSentenceDraft(e.target.value)}
+                      placeholder="He is in Paris with his wife"
+                      onBlur={() => {
+                        const typed = orderSentenceDraft.trim();
+                        const current = formData.options.map(opt => opt.text).join(' ');
+                        if (typed && typed !== current) handleOrderSplitSentence(typed);
+                      }}
+                    />
+                    <Tooltip label="Quebrar a frase em palavras">
+                      <IconButton
+                        aria-label="Gerar palavras"
+                        icon={<MdAutoFixHigh />}
+                        onClick={() => handleOrderSplitSentence(orderSentenceDraft)}
+                      />
+                    </Tooltip>
+                  </HStack>
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    Escreva a frase e saia do campo: cada palavra vira uma linha abaixo.
+                    O aluno recebe essas palavras embaralhadas.
+                  </Text>
+                </FormControl>
+
+                <Flex justify="space-between" align="center" mb={3}>
+                  <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+                    Palavras na ordem correta
+                  </Text>
+                  <Button size="xs" leftIcon={<Icon as={MdAdd} />} variant="outline" onClick={handleAddOption}>
+                    Adicionar palavra
+                  </Button>
+                </Flex>
+
+                <Table size="sm" variant="simple">
+                  <Thead bg="gray.50">
+                    <Tr>
+                      <Th w="50px" textAlign="center">Posição</Th>
+                      <Th>Palavra</Th>
+                      <Th w="90px" textAlign="center">Mover</Th>
+                      <Th w="40px" />
+                    </Tr>
+                  </Thead>
+                  <Tbody>
+                    {formData.options.map((opt, index) => (
+                      <Tr key={index}>
+                        <Td textAlign="center">
+                          <Text fontSize="sm" fontWeight="semibold" color="gray.600">{index + 1}</Text>
+                        </Td>
+                        <Td>
+                          <Input
+                            size="sm"
+                            value={opt.text}
+                            onChange={(e) => handleOptionChange(index, 'text', e.target.value)}
+                            placeholder={`Palavra ${index + 1}`}
+                          />
+                        </Td>
+                        <Td textAlign="center">
+                          <HStack spacing={0} justify="center">
+                            <IconButton
+                              aria-label="Mover para cima"
+                              icon={<MdArrowUpward />}
+                              size="xs"
+                              variant="ghost"
+                              isDisabled={index === 0}
+                              onClick={() => handleOrderMoveWord(index, -1)}
+                            />
+                            <IconButton
+                              aria-label="Mover para baixo"
+                              icon={<MdArrowDownward />}
+                              size="xs"
+                              variant="ghost"
+                              isDisabled={index === formData.options.length - 1}
+                              onClick={() => handleOrderMoveWord(index, 1)}
+                            />
+                          </HStack>
+                        </Td>
+                        <Td>
+                          <IconButton
+                            aria-label="Remover palavra"
+                            icon={<MdDelete />}
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="red"
+                            onClick={() => handleRemoveOption(index)}
+                          />
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+
+                <Flex justify="space-between" align="center" mt={6} mb={3}>
+                  <Box>
+                    <Text fontWeight="semibold" fontSize="sm" color="gray.600">
+                      Ordens alternativas aceitas
+                    </Text>
+                    <Text fontSize="xs" color="gray.500">
+                      Opcional. Outras frases igualmente corretas — ex.: &quot;He is with his wife in Paris&quot;.
+                    </Text>
+                  </Box>
+                  <Button size="xs" leftIcon={<Icon as={MdAdd} />} variant="outline" onClick={handleAddAlternative}>
+                    Adicionar alternativa
+                  </Button>
+                </Flex>
+
+                <VStack align="stretch" spacing={2}>
+                  {orderAlternatives.length === 0 && (
+                    <Text fontSize="xs" color="gray.400">Nenhuma — só a ordem acima será aceita.</Text>
+                  )}
+                  {orderAlternatives.map((alt, index) => (
+                    <HStack key={index}>
+                      <Input
+                        size="sm"
+                        value={alt}
+                        onChange={(e) => handleAlternativeChange(index, e.target.value)}
+                        placeholder="Frase completa aceita como correta"
+                      />
+                      <IconButton
+                        aria-label="Remover alternativa"
+                        icon={<MdDelete />}
+                        size="xs"
+                        variant="ghost"
+                        colorScheme="red"
+                        onClick={() => handleRemoveAlternative(index)}
+                      />
+                    </HStack>
+                  ))}
+                </VStack>
+              </Box>
+              )}
+
               {/* Opções — ocultas nos tipos dissertativos, que não têm gabarito */}
               {showOptions && (
               <Box>
@@ -880,6 +1147,24 @@ export default function ExercisesPage() {
     "options": [
       { "text": "Opção 1", "isCorrect": true },
       { "text": "Opção 2", "isCorrect": false }
+    ]
+  },
+  {
+    "description": "Where is your friend?",
+    "translation": "Onde está seu amigo?",
+    "type": "ORDER",
+    "difficulty": "MODERATE",
+    "language": "pt",
+    "origin": "BASE",
+    "options": [
+      { "text": "He",    "matchKey": "1", "isCorrect": true },
+      { "text": "is",    "matchKey": "2", "isCorrect": true },
+      { "text": "in",    "matchKey": "3", "isCorrect": true },
+      { "text": "Paris", "matchKey": "4", "isCorrect": true },
+      { "text": "with",  "matchKey": "5", "isCorrect": true },
+      { "text": "his",   "matchKey": "6", "isCorrect": true },
+      { "text": "wife",  "matchKey": "7", "isCorrect": true },
+      { "text": "He is with his wife in Paris", "matchKey": "ALT", "isCorrect": true }
     ]
   }
 ]`}
