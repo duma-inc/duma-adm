@@ -153,6 +153,7 @@ export default function ExercisesPage() {
   const [selectedType, setSelectedType] = useState('ALL');
   const [selectedDifficulty, setSelectedDifficulty] = useState('ALL');
   const [selectedStageId, setSelectedStageId] = useState('ALL');
+  const [selectedLessonId, setSelectedLessonId] = useState('ALL');
   const [selectedSkillId, setSelectedSkillId] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   // Rascunho da frase do ORDER. Fica fora do formData porque e so um atalho de
@@ -539,12 +540,14 @@ export default function ExercisesPage() {
     const matchesDifficulty = selectedDifficulty === 'ALL' || ex.difficulty === selectedDifficulty;
     
     const matchesStage = selectedStageId === 'ALL' || String(ex.stageId) === selectedStageId;
-    
+
+    const matchesLesson = selectedLessonId === 'ALL' || String(ex.lessonId) === selectedLessonId;
+
     const matchesSkill = selectedSkillId === 'ALL' || String(ex.skillId) === selectedSkillId;
-    
+
     const matchesStatus = filterStatus === 'ALL' || ex.status === filterStatus;
 
-    return matchesText && matchesType && matchesDifficulty && matchesStage && matchesSkill && matchesStatus;
+    return matchesText && matchesType && matchesDifficulty && matchesStage && matchesLesson && matchesSkill && matchesStatus;
   });
 
   const columns = [
@@ -637,6 +640,7 @@ export default function ExercisesPage() {
             onChange={(e) => {
               setSelectedSkillId(e.target.value);
               setSelectedStageId('ALL');
+              setSelectedLessonId('ALL');
             }}
             bg="white"
           >
@@ -650,7 +654,10 @@ export default function ExercisesPage() {
           <Select
             maxW="180px"
             value={selectedStageId}
-            onChange={(e) => setSelectedStageId(e.target.value)}
+            onChange={(e) => {
+              setSelectedStageId(e.target.value);
+              setSelectedLessonId('ALL');
+            }}
             bg="white"
           >
             <option value="ALL">Todos os Stages</option>
@@ -659,6 +666,22 @@ export default function ExercisesPage() {
               .map((stage) => (
                 <option key={stage.id} value={String(stage.id)}>
                   {stage.name}
+                </option>
+              ))}
+          </Select>
+          <Select
+            maxW="180px"
+            value={selectedLessonId}
+            isDisabled={selectedStageId === 'ALL'}
+            onChange={(e) => setSelectedLessonId(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todas as Lições</option>
+            {lessons
+              .filter((lesson) => String(lesson.stageId) === selectedStageId)
+              .map((lesson) => (
+                <option key={lesson.id} value={String(lesson.id)}>
+                  {lesson.title}
                 </option>
               ))}
           </Select>
