@@ -8,7 +8,6 @@ import { authOptions } from '@/lib/auth';
 import { fetchBackendJson } from '@/lib/server-api';
 import type { Meeting } from '@/services/meetingService';
 import type { Lesson } from '@/services/lessonService';
-import type { Plan } from '@/services/planService';
 import type { Skill } from '@/services/skillService';
 import type { Stage } from '@/services/stageService';
 import type { User } from '@/services/userService';
@@ -31,7 +30,6 @@ export default async function Home() {
       skillsResult,
       stagesResult,
       lessonsResult,
-      plansResult,
     ] = await Promise.allSettled([
       fetchBackendJson<DashboardSummary>('/admin/dashboard/summary', {
         accessToken,
@@ -57,10 +55,6 @@ export default async function Home() {
         accessToken,
         revalidateSeconds: 300,
       }),
-      fetchBackendJson<Plan[]>('/plans', {
-        accessToken,
-        revalidateSeconds: 300,
-      }),
     ]);
 
     if (summaryResult.status === 'rejected') {
@@ -68,7 +62,7 @@ export default async function Home() {
     }
 
     const meetingLabels: MeetingCalendarLabels = {
-      tutor: Object.fromEntries(
+      users: Object.fromEntries(
         (usersResult.status === 'fulfilled' ? usersResult.value : [])
           .map((user) => [String(user.id), user.name || user.email])
       ),
@@ -83,10 +77,6 @@ export default async function Home() {
       lessons: Object.fromEntries(
         (lessonsResult.status === 'fulfilled' ? lessonsResult.value : [])
           .map((lesson) => [String(lesson.id), lesson.title])
-      ),
-      plans: Object.fromEntries(
-        (plansResult.status === 'fulfilled' ? plansResult.value : [])
-          .map((plan) => [String(plan.id), plan.nome])
       ),
     };
 

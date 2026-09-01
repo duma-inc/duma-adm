@@ -25,12 +25,14 @@ import {
   ModalHeader,
   ModalOverlay,
   SimpleGrid,
+  Spinner,
   Text,
   useDisclosure,
   VStack,
 } from '@chakra-ui/react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { MdLaunch, MdSchedule } from 'react-icons/md';
+import { attendanceService, type Attendance } from '@/services/attendanceService';
 import type {
   Meeting,
   MeetingDuration,
@@ -39,11 +41,10 @@ import type {
 } from '@/services/meetingService';
 
 export interface MeetingCalendarLabels {
-  tutor: Record<string, string>;
+  users: Record<string, string>;
   skills: Record<string, string>;
   stages: Record<string, string>;
   lessons: Record<string, string>;
-  plans: Record<string, string>;
 }
 
 const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
@@ -185,6 +186,10 @@ export function MeetingsCalendar({
   unavailable?: boolean;
 }) {
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+  const [attendances, setAttendances] = useState<Attendance[]>([]);
+  const [isLoadingAttendances, setIsLoadingAttendances] = useState(false);
+  const [attendanceLoadFailed, setAttendanceLoadFailed] = useState(false);
+  const attendanceRequestRef = useRef(0);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const events = useMemo<EventInput[]>(() => meetings.map((meeting, index) => {
@@ -203,9 +208,43 @@ export function MeetingsCalendar({
     };
   }), [meetings]);
 
+  const loadAttendances = async (meeting: Meeting) => {
+    const meetingId = meeting.id ?? meeting.meetingId ?? meeting.uuid;
+    const requestId = ++attendanceRequestRef.current;
+
+    setAttendances([]);
+    setIsLoadingAttendances(false);
+    setAttendanceLoadFailed(false);
+
+    if (!meetingId) {
+      setAttendanceLoadFailed(true);
+      return;
+    }
+
+    setIsLoadingAttendances(true);
+    try {
+      const meetingAttendances = await attendanceService.getByMeetingId(String(meetingId));
+      if (attendanceRequestRef.current === requestId) {
+        setAttendances(meetingAttendances.filter((attendance) => attendance.status));
+      }
+    } catch {
+      if (attendanceRequestRef.current === requestId) {
+        setAttendanceLoadFailed(true);
+      }
+    } finally {
+      if (attendanceRequestRef.current === requestId) {
+        setIsLoadingAttendances(false);
+      }
+    }
+  };
+
   const handleClose = () => {
+    attendanceRequestRef.current += 1;
     onClose();
     setSelectedMeeting(null);
+    setAttendances([]);
+    setIsLoadingAttendances(false);
+    setAttendanceLoadFailed(false);
   };
 
   return (
@@ -259,8 +298,10 @@ export function MeetingsCalendar({
                   ].filter(Boolean);
                 }}
                 eventClick={(eventInfo) => {
-                  setSelectedMeeting(eventInfo.event.extendedProps.meeting as Meeting);
+                  const meeting = eventInfo.event.extendedProps.meeting as Meeting;
+                  setSelectedMeeting(meeting);
                   onOpen();
+                  void loadAttendances(meeting);
                 }}
                 dayMaxEvents
                 displayEventTime={false}
@@ -306,7 +347,7 @@ export function MeetingsCalendar({
                     label="Duração"
                     value={selectedMeeting.duration ? DURATION_LABELS[selectedMeeting.duration] : 'Não definida'}
                   />
-                  <DetailItem label="Tutor" value={resolveLabel(labels.tutor, selectedMeeting.teacherId, '—', 'Não identificado')} />
+                  <DetailItem label="Tutor" value={resolveLabel(labels.users, selectedMeeting.teacherId, '—', 'Não identificado')} />
                   <DetailItem
                     label="Skill"
                     value={resolveLabel(labels.skills, selectedMeeting.skillId, '—', 'Não identificada')}
@@ -319,11 +360,34 @@ export function MeetingsCalendar({
                     label="Lesson"
                     value={resolveLabel(labels.lessons, selectedMeeting.lessonId, '—', 'Não identificada')}
                   />
-                  <DetailItem
-                    label="Plano"
-                    value={resolveLabel(labels.plans, selectedMeeting.planId, 'Todos', 'Não identificado')}
-                  />
                 </SimpleGrid>
+
+                <DetailItem
+                  label="Alunos presentes"
+                  value={isLoadingAttendances ? (
+                    <HStack spacing={2} color="gray.500">
+                      <Spinner size="sm" />
+                      <Text>Carregando presenças...</Text>
+                    </HStack>
+                  ) : attendanceLoadFailed ? (
+                    <Text color="red.500">Não foi possível carregar as presenças.</Text>
+                  ) : attendances.length === 0 ? (
+                    <Text color="gray.500">Nenhuma presença registrada</Text>
+                  ) : (
+                    <VStack align="stretch" spacing={1}>
+                      {attendances.map((attendance) => (
+                        <Text key={attendance.id}>
+                          {resolveLabel(
+                            labels.users,
+                            attendance.studentId,
+                            '—',
+                            attendance.studentId
+                          )}
+                        </Text>
+                      ))}
+                    </VStack>
+                  )}
+                />
 
                 {selectedMeeting.recordingUrl ? (
                   <Link href={selectedMeeting.recordingUrl} isExternal color="primary.600" fontWeight="semibold">
@@ -335,7 +399,7 @@ export function MeetingsCalendar({
           </ModalBody>
           <ModalFooter gap={3}>
             <Button variant="ghost" onClick={handleClose}>Fechar</Button>
-            {selectedMeeting?.meetingUrl ? (
+            {selectedMeeting?.meetingUrl && selectedMeeting.status !== 'COMPLETED' ? (
               <Button
                 as="a"
                 href={selectedMeeting.meetingUrl}
