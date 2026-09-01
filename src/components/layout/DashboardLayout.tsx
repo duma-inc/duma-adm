@@ -1,7 +1,7 @@
 'use client'
 
 import { Box, Flex, Button, Menu, MenuButton, MenuList, MenuItem, HStack, Icon, Text, Portal, Avatar, Spinner } from '@chakra-ui/react';
-import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications, MdSlideshow, MdSportsEsports, MdStyle, MdEmail, MdCampaign } from 'react-icons/md';
+import { MdKeyboardArrowDown, MdDashboard, MdSchool, MdPeople, MdMenuBook, MdLibraryBooks, MdLogout, MdAssignment, MdBugReport, MdAttachMoney, MdGroups, MdFolder, MdRateReview, MdMic, MdSlowMotionVideo, MdBook, MdArticle, MdNotifications, MdSlideshow, MdSportsEsports, MdStyle, MdEmail, MdCampaign, MdTimeline } from 'react-icons/md';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
@@ -146,6 +146,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   </MenuItem>
                   <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdSchool} />} onClick={() => router.push('/domains/students')}>
                     Matriculados
+                  </MenuItem>
+                  <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdTimeline} />} onClick={() => router.push('/domains/acompanhamento')}>
+                    Acompanhamento
                   </MenuItem>
                   <MenuItem bg="transparent" _hover={{ bg: 'whiteAlpha.100' }} icon={<Icon as={MdPeople} />} onClick={() => router.push('/domains/users')}>
                     Usuários

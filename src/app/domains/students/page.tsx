@@ -45,16 +45,16 @@ import { lessonProgressService } from '@/services/lessonProgressService';
 
 const STATUS_COLORS: Record<EnrollmentStatus, string> = {
   ACTIVE: 'green',
-  PENDING: 'yellow',
+  PAUSED: 'yellow',
   INACTIVE: 'gray',
-  CANCELLED: 'red',
+  COMPLETED: 'blue',
 };
 
 const STATUS_LABELS: Record<EnrollmentStatus, string> = {
   ACTIVE: 'Ativa',
-  PENDING: 'Pendente',
+  PAUSED: 'Pausada',
   INACTIVE: 'Inativa',
-  CANCELLED: 'Cancelada',
+  COMPLETED: 'Concluída',
 };
 
 const INITIAL_FORM = {
@@ -410,9 +410,9 @@ export default function EnrollmentsPage() {
         >
           <option value="ALL">Todos os Status</option>
           <option value="ACTIVE">Ativa</option>
-          <option value="PENDING">Pendente</option>
+          <option value="PAUSED">Pausada</option>
           <option value="INACTIVE">Inativa</option>
-          <option value="CANCELLED">Cancelada</option>
+          <option value="COMPLETED">Concluída</option>
         </Select>
       </HStack>
 
@@ -554,9 +554,9 @@ export default function EnrollmentsPage() {
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as EnrollmentStatus })}
                 >
                   <option value="ACTIVE">Ativa</option>
-                  <option value="PENDING">Pendente</option>
+                  <option value="PAUSED">Pausada</option>
                   <option value="INACTIVE">Inativa</option>
-                  <option value="CANCELLED">Cancelada</option>
+                  <option value="COMPLETED">Concluída</option>
                 </Select>
               </FormControl>
               <FormControl>

@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 
-export type EnrollmentStatus = 'ACTIVE' | 'INACTIVE' | 'CANCELLED' | 'PENDING';
+export type EnrollmentStatus = 'ACTIVE' | 'PAUSED' | 'INACTIVE' | 'COMPLETED';
 export type EnrollmentSource = 'WEB' | 'MOBILE' | 'API' | 'SELF_ENROLLED';
 export type EnrollmentPace = 'CASUAL' | 'MODERATE' | 'AGGRESSIVE' | 'REGULAR';
 
