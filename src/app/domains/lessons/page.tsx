@@ -229,27 +229,33 @@ export default function LessonsPage() {
           <Select
             size="sm"
             maxW="220px"
-            placeholder="Todas as trilhas"
-            value={filterStageId}
-            onChange={(e) => setFilterStageId(e.target.value)}
+            placeholder="Todas as competências"
+            value={filterSkillId}
+            onChange={(e) => {
+              setFilterSkillId(e.target.value);
+              setFilterStageId('');
+            }}
             borderRadius="md"
           >
-            {stages.map((stage) => (
-              <option key={stage.id} value={String(stage.id)}>{stage.name}</option>
+            {skills.map((skill) => (
+              <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
             ))}
           </Select>
 
           <Select
             size="sm"
             maxW="220px"
-            placeholder="Todas as competências"
-            value={filterSkillId}
-            onChange={(e) => setFilterSkillId(e.target.value)}
+            placeholder={filterSkillId ? 'Todas as trilhas' : 'Selecione uma competência'}
+            value={filterStageId}
+            onChange={(e) => setFilterStageId(e.target.value)}
             borderRadius="md"
+            isDisabled={!filterSkillId}
           >
-            {skills.map((skill) => (
-              <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
-            ))}
+            {stages
+              .filter((stage) => String(stage.skillId) === filterSkillId)
+              .map((stage) => (
+                <option key={stage.id} value={String(stage.id)}>{stage.name}</option>
+              ))}
           </Select>
         </HStack>
 
@@ -261,16 +267,19 @@ export default function LessonsPage() {
                 <TagCloseButton onClick={() => setFilterTitle('')} />
               </Tag>
             )}
+            {filterSkillId && (
+              <Tag size="sm" colorScheme="green" borderRadius="full">
+                <TagLabel>Skill: {skills.find(s => String(s.id) === filterSkillId)?.name}</TagLabel>
+                <TagCloseButton onClick={() => {
+                  setFilterSkillId('');
+                  setFilterStageId('');
+                }} />
+              </Tag>
+            )}
             {filterStageId && (
               <Tag size="sm" colorScheme="purple" borderRadius="full">
                 <TagLabel>Trilha: {stages.find(s => String(s.id) === filterStageId)?.name}</TagLabel>
                 <TagCloseButton onClick={() => setFilterStageId('')} />
-              </Tag>
-            )}
-            {filterSkillId && (
-              <Tag size="sm" colorScheme="green" borderRadius="full">
-                <TagLabel>Skill: {skills.find(s => String(s.id) === filterSkillId)?.name}</TagLabel>
-                <TagCloseButton onClick={() => setFilterSkillId('')} />
               </Tag>
             )}
             <Text fontSize="xs" color="gray.400">
