@@ -31,11 +31,13 @@ import {
   useDisclosure,
   useToast,
 } from '@chakra-ui/react';
-import { MdRateReview } from 'react-icons/md';
+import { MdRateReview, MdSend } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/DataTable';
+import { IconButton } from '@chakra-ui/react';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { attemptService, Attempt, AttemptPayload } from '@/services/attemptService';
+import { exerciseCorrectionService } from '@/services/exerciseCorrectionService';
 import { exerciseService, Exercise, ExerciseType } from '@/services/exerciseService';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { skillService, Skill } from '@/services/skillService';
@@ -104,11 +106,15 @@ export default function DeliveriesPage() {
   const [selectedTypes, setSelectedTypes] = useState<ExerciseType[]>(DEFAULT_FILTER_TYPES);
   const [selectedSkillId, setSelectedSkillId] = useState('ALL');
   const [selectedStageId, setSelectedStageId] = useState('ALL');
+  const [selectedStatus, setSelectedStatus] = useState('ALL');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [search, setSearch] = useState('');
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [editingAttempt, setEditingAttempt] = useState<AttemptRow | null>(null);
   const [attemptToDelete, setAttemptToDelete] = useState<AttemptRow | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -203,6 +209,16 @@ export default function DeliveriesPage() {
 
       if (!matchesType) return false;
 
+      if (selectedStatus !== 'ALL' && (row.correctionStatus ?? '') !== selectedStatus) return false;
+
+      // Filtro por intervalo de datas de criacao da entrega (inclusivo, comparando o dia yyyy-MM-dd).
+      if (startDate || endDate) {
+        const rowDate = row.createdAt ? row.createdAt.slice(0, 10) : '';
+        if (!rowDate) return false;
+        if (startDate && rowDate < startDate) return false;
+        if (endDate && rowDate > endDate) return false;
+      }
+
       const scope = resolveScope(exercise, row.lessonId);
       if (selectedSkillId !== 'ALL' && String(scope.skillId ?? '') !== selectedSkillId) return false;
       if (selectedStageId !== 'ALL' && String(scope.stageId ?? '') !== selectedStageId) return false;
@@ -221,7 +237,7 @@ export default function DeliveriesPage() {
 
       return haystack.includes(normalizedSearch);
     });
-  }, [exerciseById, resolveScope, rows, search, selectedSkillId, selectedStageId, selectedTypes]);
+  }, [exerciseById, resolveScope, rows, search, selectedSkillId, selectedStageId, selectedStatus, selectedTypes, startDate, endDate]);
 
   const stageOptions = useMemo(
     () => stages.filter((stage) => selectedSkillId === 'ALL' || String(stage.skillId) === selectedSkillId),
@@ -355,6 +371,22 @@ export default function DeliveriesPage() {
       toastRef.current({ title: 'Erro ao excluir entrega', status: 'error' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Consolida e envia ao aluno as correcoes do dia da entrega (todas as CORRECTED daquele aluno+dia).
+  const handleSendCorrection = async (attempt: AttemptRow) => {
+    if (!ensureAttemptHasId(attempt)) return;
+
+    setSendingId(attempt.id);
+    try {
+      await exerciseCorrectionService.consolidateFromAttempt(String(attempt.attemptId));
+      toastRef.current({ title: 'Correção enviada ao aluno', status: 'success' });
+      loadAll();
+    } catch {
+      toastRef.current({ title: 'Erro ao enviar a correção', status: 'error' });
+    } finally {
+      setSendingId(null);
     }
   };
 
@@ -500,6 +532,48 @@ export default function DeliveriesPage() {
                 ))}
               </Select>
             </FormControl>
+            <FormControl maxW="220px">
+              <FormLabel>Status da correção</FormLabel>
+              <Select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <option value="ALL">Todos os status</option>
+                <option value="PENDING">Pendente</option>
+                <option value="CORRECTED">Corrigido</option>
+                <option value="NOT_APPLICABLE">Não aplicável</option>
+              </Select>
+            </FormControl>
+            <FormControl maxW="200px">
+              <FormLabel>Data inicial</FormLabel>
+              <Input
+                type="date"
+                value={startDate}
+                max={endDate || undefined}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </FormControl>
+            <FormControl maxW="200px">
+              <FormLabel>Data final</FormLabel>
+              <Input
+                type="date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </FormControl>
+            {(startDate || endDate) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+              >
+                Limpar datas
+              </Button>
+            )}
           </HStack>
           <FormControl>
             <FormLabel>Tipos de exercício exibidos</FormLabel>
@@ -522,6 +596,19 @@ export default function DeliveriesPage() {
       <DataTable
         columns={columns}
         data={filteredRows}
+        actions={(item) => (
+          <IconButton
+            aria-label="Enviar correção ao aluno"
+            title="Consolidar e enviar a correção do dia ao aluno"
+            icon={<MdSend />}
+            size="sm"
+            colorScheme="green"
+            variant="ghost"
+            isLoading={sendingId === item.id}
+            isDisabled={item.correctionStatus !== 'CORRECTED'}
+            onClick={() => handleSendCorrection(item)}
+          />
+        )}
         onEdit={(item) => handleOpenForm(item)}
         onDelete={(item) => {
           setAttemptToDelete(item);
