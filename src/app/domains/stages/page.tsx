@@ -24,9 +24,12 @@ import {
   VStack,
   Switch,
   HStack,
+  InputGroup,
+  InputLeftElement,
+  Icon,
 } from '@chakra-ui/react';
 import axios from 'axios';
-import { MdAdd } from 'react-icons/md';
+import { MdAdd, MdSearch } from 'react-icons/md';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { stageService, Stage } from '@/services/stageService';
@@ -71,6 +74,11 @@ export default function StagesPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [editingStage, setEditingStage] = useState<Stage | null>(null);
   const [stageToDelete, setStageToDelete] = useState<Stage | null>(null);
+
+  // Filtros da listagem
+  const [filterSkillId, setFilterSkillId] = useState('ALL');
+  const [filterOrder, setFilterOrder] = useState('');
+  const [filterTitle, setFilterTitle] = useState('');
 
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -140,6 +148,18 @@ export default function StagesPage() {
       .filter((order): order is number => typeof order === 'number');
     return usedOrders.length ? Math.max(...usedOrders) + 1 : 1;
   }, [siblingStages]);
+
+  /* Lista filtrada exibida na tabela: skill + ordem exata + trecho do titulo. */
+  const filteredStages = useMemo(() => {
+    const orderTerm = filterOrder.trim();
+    const titleTerm = filterTitle.trim().toLowerCase();
+    return stages.filter((stage) => {
+      if (filterSkillId !== 'ALL' && stage.skillId !== Number(filterSkillId)) return false;
+      if (orderTerm && String(stage.orderIndex ?? '') !== orderTerm) return false;
+      if (titleTerm && !stage.name?.toLowerCase().includes(titleTerm)) return false;
+      return true;
+    });
+  }, [stages, filterSkillId, filterOrder, filterTitle]);
 
   const handleSelectSkill = (skillId: string) => {
     setFormData((previous) => {
@@ -273,9 +293,59 @@ export default function StagesPage() {
         </Button>
       </Flex>
 
+      {/* Filtros */}
+      <HStack spacing={4} mb={6} align="center" flexWrap="wrap" gap={3}>
+        <Select
+          maxW="220px"
+          value={filterSkillId}
+          onChange={(e) => setFilterSkillId(e.target.value)}
+          bg="white"
+        >
+          <option value="ALL">Todas as Skills</option>
+          {skills.map((skill) => (
+            <option key={skill.id} value={String(skill.id)}>
+              {skill.name}
+            </option>
+          ))}
+        </Select>
+        <Input
+          type="number"
+          min={0}
+          maxW="140px"
+          placeholder="Ordem"
+          value={filterOrder}
+          onChange={(e) => setFilterOrder(e.target.value)}
+          bg="white"
+        />
+        <InputGroup maxW="320px">
+          <InputLeftElement pointerEvents="none">
+            <Icon as={MdSearch} color="gray.400" />
+          </InputLeftElement>
+          <Input
+            placeholder="Buscar por título..."
+            value={filterTitle}
+            onChange={(e) => setFilterTitle(e.target.value)}
+            bg="white"
+          />
+        </InputGroup>
+        {(filterSkillId !== 'ALL' || filterOrder.trim() || filterTitle.trim()) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setFilterSkillId('ALL');
+              setFilterOrder('');
+              setFilterTitle('');
+            }}
+          >
+            Limpar filtros
+          </Button>
+        )}
+      </HStack>
+
       <DataTable
         columns={columns}
-        data={stages}
+        data={filteredStages}
         onEdit={(stage) => handleOpenForm(stage)}
         onDelete={(stage) => {
           setStageToDelete(stage);
