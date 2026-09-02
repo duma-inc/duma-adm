@@ -44,6 +44,7 @@ const INITIAL_ARTICLE_FORM = {
   source: '',
   publishedAt: '',
   content: '',
+  questions: '',
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -127,6 +128,7 @@ export default function NewsPage() {
         source: article.source || '',
         publishedAt: article.publishedAt || '',
         content: article.content || '',
+        questions: article.questions ? JSON.stringify(article.questions, null, 2) : '',
       });
     } else {
       setEditingArticle(null);
@@ -149,6 +151,35 @@ export default function NewsPage() {
       return;
     }
 
+    let questions: unknown = null;
+    if (articleForm.questions.trim()) {
+      try {
+        questions = JSON.parse(articleForm.questions);
+      } catch {
+        toastRef.current({ title: 'Questões: JSON inválido', status: 'error' });
+        return;
+      }
+
+      const invalida = !Array.isArray(questions) || questions.some((item) => {
+        const questao = item as { question?: unknown; options?: unknown; correctIndex?: unknown };
+        return typeof questao?.question !== 'string'
+          || !questao.question.trim()
+          || !Array.isArray(questao.options)
+          || questao.options.length !== 4
+          || typeof questao.correctIndex !== 'number'
+          || questao.correctIndex < 0
+          || questao.correctIndex > 3;
+      });
+
+      if (invalida) {
+        toastRef.current({
+          title: 'Questões: cada item precisa de question, 4 options e correctIndex entre 0 e 3',
+          status: 'error',
+        });
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       const payload = {
@@ -159,6 +190,7 @@ export default function NewsPage() {
         source: articleForm.source.trim(),
         publishedAt: articleForm.publishedAt.trim(),
         content: articleForm.content.trim(),
+        questions,
       };
 
       if (editingArticle) {
@@ -433,6 +465,21 @@ export default function NewsPage() {
               <FormControl isRequired>
                 <FormLabel>Conteúdo</FormLabel>
                 <Textarea value={articleForm.content} onChange={(e) => setArticleForm({ ...articleForm, content: e.target.value })} rows={10} />
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Questões (JSON)</FormLabel>
+                <Textarea
+                  value={articleForm.questions}
+                  onChange={(e) => setArticleForm({ ...articleForm, questions: e.target.value })}
+                  rows={12}
+                  fontFamily="mono"
+                  fontSize="sm"
+                  placeholder={'[\n  {\n    "id": "q1",\n    "type": "MULTIPLE_CHOICE",\n    "question": "...",\n    "options": ["A", "B", "C", "D"],\n    "correctIndex": 1,\n    "explanation": "..."\n  }\n]'}
+                />
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Opcional. Cada item: 4 opções e correctIndex entre 0 e 3. Deixe vazio para não ter quiz.
+                </Text>
               </FormControl>
             </VStack>
           </ModalBody>

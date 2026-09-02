@@ -10,6 +10,8 @@ export interface NewsArticle {
   source: string;
   publishedAt: string;
   content: string;
+  /** Quiz de compreensao (jsonb no banco). Chega como array ja desserializado. */
+  questions?: unknown;
 }
 
 export interface NewsArticlePayload {
@@ -21,6 +23,7 @@ export interface NewsArticlePayload {
   source: string;
   publishedAt: string;
   content: string;
+  questions?: unknown;
 }
 
 export const newsService = {
