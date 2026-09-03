@@ -6,6 +6,7 @@ export interface Skill {
   slug: string;
   shortDescription: string;
   fullDescription: string;
+  contentLocale: string;
   categoryId?: number;
   category?: string;
   iconUrl: string;

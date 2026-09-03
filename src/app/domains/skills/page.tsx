@@ -31,12 +31,13 @@ import {
   Th,
   Td,
   Text,
-  Divider,
 } from '@chakra-ui/react';
-import { MdAdd, MdCategory, MdEdit, MdDelete } from 'react-icons/md';
+import { MdAdd, MdCategory, MdEdit, MdDelete, MdSchool } from 'react-icons/md';
+import { Image, FormHelperText } from '@chakra-ui/react';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { skillService, Skill, SkillCategory } from '@/services/skillService';
+import { uploadFile } from '@/services/fileService';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 
 export default function SkillsPage() {
@@ -46,6 +47,7 @@ export default function SkillsPage() {
   const [isCatLoading, setIsCatLoading] = useState(false);
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
   const [skillToDelete, setSkillToDelete] = useState<Skill | null>(null);
+  const [selectedIconFile, setSelectedIconFile] = useState<File | null>(null);
 
   // modal skill
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
@@ -67,6 +69,7 @@ export default function SkillsPage() {
     slug: '',
     shortDescription: '',
     fullDescription: '',
+    contentLocale: 'en-US',
     categoryId: '',
     iconUrl: ''
   });
@@ -79,7 +82,7 @@ export default function SkillsPage() {
       ]);
       setSkills(skillsResult.status      === 'fulfilled' ? skillsResult.value : []);
       setCategories(catsResult.status    === 'fulfilled' ? catsResult.value   : []);
-    } catch (error) {
+    } catch {
       toast({ title: 'Erro ao carregar competências', status: 'error' });
     }
   };
@@ -90,6 +93,7 @@ export default function SkillsPage() {
 
   // --- Skills ---
   const handleOpenForm = (skill?: Skill) => {
+    setSelectedIconFile(null);
     if (skill) {
       setEditingSkill(skill);
       let catId = skill.categoryId?.toString() || '';
@@ -102,12 +106,13 @@ export default function SkillsPage() {
         slug: skill.slug || '',
         shortDescription: skill.shortDescription || '',
         fullDescription: skill.fullDescription || '',
+        contentLocale: skill.contentLocale || 'en-US',
         categoryId: catId,
         iconUrl: skill.iconUrl || ''
       });
     } else {
       setEditingSkill(null);
-      setFormData({ name: '', slug: '', shortDescription: '', fullDescription: '', categoryId: '', iconUrl: '' });
+      setFormData({ name: '', slug: '', shortDescription: '', fullDescription: '', contentLocale: 'en-US', categoryId: '', iconUrl: '' });
     }
     onFormOpen();
   };
@@ -115,7 +120,19 @@ export default function SkillsPage() {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      const payload = { ...formData, categoryId: Number(formData.categoryId) };
+      let resolvedIconUrl = formData.iconUrl;
+
+      if (selectedIconFile) {
+        const uploaded = await uploadFile(selectedIconFile);
+        resolvedIconUrl = uploaded.publicUrl;
+      }
+
+      const payload = {
+        ...formData,
+        iconUrl: resolvedIconUrl,
+        categoryId: Number(formData.categoryId)
+      };
+
       if (editingSkill) {
         await skillService.update(editingSkill.id, payload);
         toast({ title: 'Skill atualizada com sucesso', status: 'success' });
@@ -125,8 +142,8 @@ export default function SkillsPage() {
       }
       onFormClose();
       loadSkills();
-    } catch (error) {
-      toast({ title: 'Erro ao salvar', status: 'error' });
+    } catch {
+      toast({ title: 'Erro ao salvar skill', status: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +157,7 @@ export default function SkillsPage() {
       toast({ title: 'Competência excluída com sucesso', status: 'success' });
       onDeleteClose();
       loadSkills();
-    } catch (error) {
+    } catch {
       toast({ title: 'Erro ao excluir', status: 'error' });
     } finally {
       setIsLoading(false);
@@ -186,7 +203,7 @@ export default function SkillsPage() {
       setShowCatForm(false);
       setEditingCategory(null);
       setCatFormData({ name: '', description: '' });
-    } catch (error) {
+    } catch {
       toast({ title: 'Erro ao salvar categoria', status: 'error' });
     } finally {
       setIsCatLoading(false);
@@ -202,7 +219,7 @@ export default function SkillsPage() {
       const updated = await skillService.getCategories();
       setCategories(updated);
       onCatDeleteClose();
-    } catch (error) {
+    } catch {
       toast({ title: 'Erro ao excluir categoria', status: 'error' });
     } finally {
       setIsCatLoading(false);
@@ -210,8 +227,37 @@ export default function SkillsPage() {
   };
 
   const columns = [
-    { key: 'name', header: 'Nome' },
+    {
+      key: 'name',
+      header: 'Nome',
+      render: (item: Skill) => (
+        <HStack spacing={3} align="center">
+          {item.iconUrl ? (
+            <Image
+              src={item.iconUrl}
+              alt={item.name}
+              boxSize="28px"
+              objectFit="cover"
+              borderRadius="md"
+              fallback={<Icon as={MdSchool} boxSize="28px" color="gray.400" />}
+            />
+          ) : (
+            <Flex
+              boxSize="28px"
+              borderRadius="md"
+              bg="gray.100"
+              align="center"
+              justify="center"
+            >
+              <Icon as={MdSchool} color="gray.500" boxSize="18px" />
+            </Flex>
+          )}
+          <Text fontWeight="medium">{item.name}</Text>
+        </HStack>
+      )
+    },
     { key: 'slug', header: 'Slug' },
+    { key: 'contentLocale', header: 'Idioma do conteúdo' },
     { key: 'category', header: 'Categoria', render: (item: Skill) => item.category || item.categoryId }
   ];
 
@@ -268,6 +314,19 @@ export default function SkillsPage() {
                 </Select>
               </FormControl>
               <FormControl isRequired>
+                <FormLabel>Idioma do conteúdo</FormLabel>
+                <Select
+                  value={formData.contentLocale}
+                  onChange={(e) => setFormData({ ...formData, contentLocale: e.target.value })}
+                >
+                  <option value="en-US">Inglês (en-US)</option>
+                  <option value="es-ES">Espanhol (es-ES)</option>
+                  <option value="it-IT">Italiano (it-IT)</option>
+                  <option value="de-DE">Alemão (de-DE)</option>
+                  <option value="fr-FR">Francês (fr-FR)</option>
+                </Select>
+              </FormControl>
+              <FormControl isRequired>
                 <FormLabel>Descrição Curta</FormLabel>
                 <Input value={formData.shortDescription} onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })} />
               </FormControl>
@@ -276,8 +335,87 @@ export default function SkillsPage() {
                 <Textarea rows={4} value={formData.fullDescription} onChange={(e) => setFormData({ ...formData, fullDescription: e.target.value })} />
               </FormControl>
               <FormControl>
-                <FormLabel>URL do Ícone</FormLabel>
-                <Input value={formData.iconUrl} onChange={(e) => setFormData({ ...formData, iconUrl: e.target.value })} />
+                <FormLabel>Ícone da Skill</FormLabel>
+                <HStack spacing={4} mb={3} align="center">
+                  {selectedIconFile ? (
+                    <Image
+                      src={URL.createObjectURL(selectedIconFile)}
+                      alt="Preview do Ícone"
+                      boxSize="48px"
+                      objectFit="cover"
+                      borderRadius="md"
+                      border="1px solid"
+                      borderColor="gray.200"
+                    />
+                  ) : formData.iconUrl ? (
+                    <Image
+                      src={formData.iconUrl}
+                      alt="Ícone cadastrado"
+                      boxSize="48px"
+                      objectFit="cover"
+                      borderRadius="md"
+                      border="1px solid"
+                      borderColor="gray.200"
+                      fallback={<Icon as={MdSchool} boxSize="48px" color="gray.400" />}
+                    />
+                  ) : (
+                    <Flex
+                      boxSize="48px"
+                      borderRadius="md"
+                      bg="gray.100"
+                      align="center"
+                      justify="center"
+                      border="1px dashed"
+                      borderColor="gray.300"
+                    >
+                      <Icon as={MdSchool} boxSize="24px" color="gray.400" />
+                    </Flex>
+                  )}
+                  <VStack align="flex-start" spacing={1}>
+                    <Text fontSize="xs" fontWeight="medium" color="gray.600">
+                      {selectedIconFile
+                        ? `Arquivo: ${selectedIconFile.name}`
+                        : formData.iconUrl
+                        ? 'Ícone cadastrado'
+                        : 'Nenhum ícone selecionado'}
+                    </Text>
+                    {(selectedIconFile || formData.iconUrl) && (
+                      <Button
+                        size="xs"
+                        colorScheme="red"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelectedIconFile(null);
+                          setFormData({ ...formData, iconUrl: '' });
+                        }}
+                      >
+                        Remover ícone
+                      </Button>
+                    )}
+                  </VStack>
+                </HStack>
+
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setSelectedIconFile(e.target.files[0]);
+                    }
+                  }}
+                  p={1}
+                  mb={2}
+                />
+                <FormHelperText fontSize="xs">
+                  Ou insira a URL da imagem manualmente:
+                </FormHelperText>
+                <Input
+                  size="sm"
+                  placeholder="https://..."
+                  value={formData.iconUrl}
+                  onChange={(e) => setFormData({ ...formData, iconUrl: e.target.value })}
+                  mt={1}
+                />
               </FormControl>
             </VStack>
           </ModalBody>

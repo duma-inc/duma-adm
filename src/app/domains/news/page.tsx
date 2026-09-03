@@ -35,9 +35,11 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { DataTable } from '@/components/ui/DataTable';
 import { newsCategoryService, NewsCategory } from '@/services/newsCategoryService';
 import { newsService, NewsArticle } from '@/services/newsService';
+import { skillService, Skill } from '@/services/skillService';
 
 const INITIAL_ARTICLE_FORM = {
   headline: '',
+  skillId: '',
   categoryId: '',
   summary: '',
   highlightedArticle: false,
@@ -65,6 +67,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 export default function NewsPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [categories, setCategories] = useState<NewsCategory[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [editingArticle, setEditingArticle] = useState<NewsArticle | null>(null);
@@ -74,6 +77,7 @@ export default function NewsPage() {
   // States for filtering
   const [searchText, setSearchText] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
+  const [selectedSkillId, setSelectedSkillId] = useState('ALL');
 
   const [editingCategory, setEditingCategory] = useState<NewsCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<NewsCategory | null>(null);
@@ -90,13 +94,15 @@ export default function NewsPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [articlesResult, categoriesResult] = await Promise.allSettled([
+      const [articlesResult, categoriesResult, skillsResult] = await Promise.allSettled([
         newsService.getAll(),
         newsCategoryService.getAll(),
+        skillService.getAll(),
       ]);
 
       setArticles(articlesResult.status === 'fulfilled' ? articlesResult.value : []);
       setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value : []);
+      setSkills(skillsResult.status === 'fulfilled' ? skillsResult.value : []);
     } catch {
       toastRef.current({ title: 'Erro ao carregar notícias', status: 'error' });
     }
@@ -122,6 +128,7 @@ export default function NewsPage() {
       setEditingArticle(article);
       setArticleForm({
         headline: article.headline || '',
+        skillId: article.skillId ? String(article.skillId) : '',
         categoryId: article.categoryId ? String(article.categoryId) : '',
         summary: article.summary || '',
         highlightedArticle: article.highlightedArticle,
@@ -141,13 +148,14 @@ export default function NewsPage() {
   const handleSaveArticle = async () => {
     if (
       !articleForm.headline.trim()
+      || !articleForm.skillId
       || !articleForm.categoryId
       || !articleForm.summary.trim()
       || !articleForm.source.trim()
       || !articleForm.publishedAt.trim()
       || !articleForm.content.trim()
     ) {
-      toastRef.current({ title: 'Preencha categoria, headline, resumo, fonte, data e conteúdo', status: 'warning' });
+      toastRef.current({ title: 'Preencha skill, categoria, headline, resumo, fonte, data e conteúdo', status: 'warning' });
       return;
     }
 
@@ -183,6 +191,7 @@ export default function NewsPage() {
     setIsLoading(true);
     try {
       const payload = {
+        skillId: Number(articleForm.skillId),
         categoryId: Number(articleForm.categoryId),
         headline: articleForm.headline.trim(),
         summary: articleForm.summary.trim(),
@@ -293,8 +302,9 @@ export default function NewsPage() {
       (art.source && art.source.toLowerCase().includes(searchText.toLowerCase()));
     
     const matchesCategory = selectedCategoryId === 'ALL' || String(art.categoryId) === selectedCategoryId;
+    const matchesSkill = selectedSkillId === 'ALL' || String(art.skillId) === selectedSkillId;
 
-    return matchesText && matchesCategory;
+    return matchesText && matchesCategory && matchesSkill;
   });
 
   const articleColumns = [
@@ -302,6 +312,11 @@ export default function NewsPage() {
       key: 'headline',
       header: 'Headline',
       render: (item: NewsArticle) => <Text fontSize="sm">{item.headline}</Text>,
+    },
+    {
+      key: 'skillId',
+      header: 'Skill',
+      render: (item: NewsArticle) => <Text fontSize="sm">{skills.find((skill) => skill.id === item.skillId)?.name || '—'}</Text>,
     },
     {
       key: 'category',
@@ -375,6 +390,17 @@ export default function NewsPage() {
               />
             </InputGroup>
             <Select
+              maxW="220px"
+              value={selectedSkillId}
+              onChange={(e) => setSelectedSkillId(e.target.value)}
+              bg="white"
+            >
+              <option value="ALL">Todas as Skills</option>
+              {skills.map((skill) => (
+                <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
+              ))}
+            </Select>
+            <Select
               maxW="200px"
               value={selectedCategoryId}
               onChange={(e) => setSelectedCategoryId(e.target.value)}
@@ -424,6 +450,16 @@ export default function NewsPage() {
               <FormControl isRequired>
                 <FormLabel>Headline</FormLabel>
                 <Input value={articleForm.headline} onChange={(e) => setArticleForm({ ...articleForm, headline: e.target.value })} />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Skill</FormLabel>
+                <Select value={articleForm.skillId} onChange={(e) => setArticleForm({ ...articleForm, skillId: e.target.value })}>
+                  <option value="">Selecione</option>
+                  {skills.map((skill) => (
+                    <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
+                  ))}
+                </Select>
               </FormControl>
 
               <FormControl isRequired>

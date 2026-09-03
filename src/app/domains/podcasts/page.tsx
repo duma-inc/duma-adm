@@ -37,9 +37,11 @@ import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { fileService } from '@/services/fileService';
 import { podcastCategoryService, PodcastCategory } from '@/services/podcastCategoryService';
 import { podcastService, PodcastEpisode } from '@/services/podcastService';
+import { skillService, Skill } from '@/services/skillService';
 
 const INITIAL_EPISODE_FORM = {
   title: '',
+  skillId: '',
   categoryId: '',
   description: '',
   durationLabel: '',
@@ -51,6 +53,7 @@ const INITIAL_EPISODE_FORM = {
 export default function PodcastsPage() {
   const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
   const [categories, setCategories] = useState<PodcastCategory[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [editingEpisode, setEditingEpisode] = useState<PodcastEpisode | null>(null);
@@ -62,6 +65,7 @@ export default function PodcastsPage() {
   // States for filtering
   const [searchText, setSearchText] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
+  const [selectedSkillId, setSelectedSkillId] = useState('ALL');
 
   const [editingCategory, setEditingCategory] = useState<PodcastCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<PodcastCategory | null>(null);
@@ -77,9 +81,10 @@ export default function PodcastsPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [episodesResult, categoriesResult] = await Promise.allSettled([
+      const [episodesResult, categoriesResult, skillsResult] = await Promise.allSettled([
         podcastService.getAll(),
         podcastCategoryService.getAll(),
+        skillService.getAll(),
       ]);
 
       const resolvedCategories = categoriesResult.status === 'fulfilled' ? categoriesResult.value : [];
@@ -87,6 +92,7 @@ export default function PodcastsPage() {
 
       setCategories(resolvedCategories);
       setEpisodes(resolvedEpisodes);
+      setSkills(skillsResult.status === 'fulfilled' ? skillsResult.value : []);
     } catch {
       toastRef.current({ title: 'Erro ao carregar podcasts', status: 'error' });
     }
@@ -110,6 +116,7 @@ export default function PodcastsPage() {
       setEditingEpisode(episode);
       setEpisodeForm({
         title: episode.title || '',
+        skillId: episode.skillId ? String(episode.skillId) : '',
         categoryId: episode.categoryId ? String(episode.categoryId) : '',
         description: episode.description || '',
         durationLabel: episode.durationLabel || '',
@@ -146,8 +153,8 @@ export default function PodcastsPage() {
   };
 
   const handleSaveEpisode = async () => {
-    if (!episodeForm.title.trim() || !episodeForm.categoryId || !episodeForm.description.trim()) {
-      toastRef.current({ title: 'Preencha título, categoria e descrição', status: 'warning' });
+    if (!episodeForm.title.trim() || !episodeForm.skillId || !episodeForm.categoryId || !episodeForm.description.trim()) {
+      toastRef.current({ title: 'Preencha skill, título, categoria e descrição', status: 'warning' });
       return;
     }
 
@@ -182,6 +189,7 @@ export default function PodcastsPage() {
 
       const payload = {
         title: episodeForm.title.trim(),
+        skillId: Number(episodeForm.skillId),
         categoryId: Number(episodeForm.categoryId),
         description: episodeForm.description.trim(),
         durationLabel: episodeForm.durationLabel.trim() || undefined,
@@ -286,6 +294,13 @@ export default function PodcastsPage() {
       render: (item: PodcastEpisode) => <Text fontSize="sm">{item.title}</Text>,
     },
     {
+      key: 'skillId',
+      header: 'Skill',
+      render: (item: PodcastEpisode) => (
+        <Text fontSize="sm">{skills.find((skill) => skill.id === item.skillId)?.name || '—'}</Text>
+      ),
+    },
+    {
       key: 'categoryId',
       header: 'Categoria',
       render: (item: PodcastEpisode) => <Text fontSize="sm">{getCategoryLabel(item)}</Text>,
@@ -371,8 +386,9 @@ export default function PodcastsPage() {
       (ep.description && ep.description.toLowerCase().includes(searchText.toLowerCase()));
     
     const matchesCategory = selectedCategoryId === 'ALL' || String(ep.categoryId) === selectedCategoryId;
+    const matchesSkill = selectedSkillId === 'ALL' || String(ep.skillId) === selectedSkillId;
 
-    return matchesText && matchesCategory;
+    return matchesText && matchesCategory && matchesSkill;
   });
 
   return (
@@ -408,6 +424,17 @@ export default function PodcastsPage() {
               bg="white"
             />
           </InputGroup>
+          <Select
+            maxW="220px"
+            value={selectedSkillId}
+            onChange={(e) => setSelectedSkillId(e.target.value)}
+            bg="white"
+          >
+            <option value="ALL">Todas as Skills</option>
+            {skills.map((skill) => (
+              <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
+            ))}
+          </Select>
           <Select
             maxW="200px"
             value={selectedCategoryId}
@@ -460,6 +487,19 @@ export default function PodcastsPage() {
                   value={episodeForm.title}
                   onChange={(e) => setEpisodeForm({ ...episodeForm, title: e.target.value })}
                 />
+              </FormControl>
+
+              <FormControl isRequired>
+                <FormLabel>Skill</FormLabel>
+                <Select
+                  value={episodeForm.skillId}
+                  onChange={(e) => setEpisodeForm({ ...episodeForm, skillId: e.target.value })}
+                  placeholder="Selecione a skill"
+                >
+                  {skills.map((skill) => (
+                    <option key={skill.id} value={skill.id}>{skill.name}</option>
+                  ))}
+                </Select>
               </FormControl>
 
               <FormControl isRequired>

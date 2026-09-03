@@ -178,8 +178,8 @@ export default function GamesPage() {
   };
 
   const handleSave = async () => {
-    if (!gameForm.title.trim()) {
-      toastRef.current({ title: 'Informe o título do jogo', status: 'warning' });
+    if (!gameForm.title.trim() || !gameForm.skillId) {
+      toastRef.current({ title: 'Informe o título e a skill do jogo', status: 'warning' });
       return;
     }
 
@@ -328,14 +328,14 @@ export default function GamesPage() {
               </FormControl>
 
               <HStack spacing={4} w="full" align="flex-start">
-                <FormControl>
+                <FormControl isRequired>
                   <FormLabel>Skill</FormLabel>
                   <Select
                     value={gameForm.skillId}
                     onChange={(e) =>
                       setGameForm({ ...gameForm, skillId: e.target.value, stageId: '', lessonId: '' })
                     }
-                    placeholder="Todas"
+                    placeholder="Selecione"
                   >
                     {skills.map((skill) => (
                       <option key={skill.id} value={skill.id}>{skill.name}</option>

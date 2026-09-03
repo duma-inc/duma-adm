@@ -5,6 +5,7 @@ export interface PodcastEpisode {
   title: string;
   categoryId?: number | string;
   categoryName?: string;
+  skillId: number;
   coverImageUrl?: string;
   audioUrl?: string;
   durationLabel?: string;
@@ -16,6 +17,7 @@ export interface PodcastEpisode {
 export interface PodcastEpisodePayload {
   title: string;
   categoryId: number;
+  skillId: number;
   description: string;
   durationLabel?: string;
   transcript?: string;

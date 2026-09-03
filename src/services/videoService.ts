@@ -5,6 +5,7 @@ export interface VideoItem {
   title: string;
   categoryId?: number | string;
   category?: string;
+  skillId: number | null;
   embedUrl: string;
   thumbnailUrl?: string;
   durationLabel: string;
@@ -16,6 +17,8 @@ export interface VideoItemPayload {
   id?: string;
   title: string;
   categoryId: number;
+  skillId: number | null;
+  global?: boolean;
   embedUrl: string;
   thumbnailUrl?: string;
   durationLabel: string;

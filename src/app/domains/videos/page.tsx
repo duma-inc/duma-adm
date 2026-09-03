@@ -36,9 +36,11 @@ import { DataTable } from '@/components/ui/DataTable';
 import { videoCategoryService, VideoCategory } from '@/services/videoCategoryService';
 import { videoService, VideoItem } from '@/services/videoService';
 import { lessonService, Lesson } from '@/services/lessonService';
+import { skillService, Skill } from '@/services/skillService';
 
 const INITIAL_VIDEO_FORM = {
   title: '',
+  skillId: '',
   categoryId: '',
   embedUrl: '',
   thumbnailUrl: '',
@@ -66,6 +68,7 @@ export default function VideosPage() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [categories, setCategories] = useState<VideoCategory[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [editingVideo, setEditingVideo] = useState<VideoItem | null>(null);
@@ -75,6 +78,7 @@ export default function VideosPage() {
   // States for filtering
   const [searchText, setSearchText] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('ALL');
+  const [selectedSkillId, setSelectedSkillId] = useState('ALL');
 
   const [editingCategory, setEditingCategory] = useState<VideoCategory | null>(null);
   const [categoryToDelete, setCategoryToDelete] = useState<VideoCategory | null>(null);
@@ -87,19 +91,21 @@ export default function VideosPage() {
   const { isOpen: isDeleteCategoryOpen, onOpen: onDeleteCategoryOpen, onClose: onDeleteCategoryClose } = useDisclosure();
   const toast = useToast();
   const toastRef = useRef(toast);
-  useEffect(() => { toastRef.current = toast; }, []);  // toastRef evita loop infinito
+  useEffect(() => { toastRef.current = toast; }, [toast]);
 
   const loadAll = useCallback(async () => {
     try {
-      const [videosResult, categoriesResult, lessonsResult] = await Promise.allSettled([
+      const [videosResult, categoriesResult, lessonsResult, skillsResult] = await Promise.allSettled([
         videoService.getAll(),
         videoCategoryService.getAll(),
         lessonService.getAll(),
+        skillService.getAll(),
       ]);
 
       setVideos(videosResult.status === 'fulfilled' ? videosResult.value : []);
       setCategories(categoriesResult.status === 'fulfilled' ? categoriesResult.value : []);
       setLessons(lessonsResult.status === 'fulfilled' ? lessonsResult.value : []);
+      setSkills(skillsResult.status === 'fulfilled' ? skillsResult.value : []);
     } catch {
       toastRef.current({ title: 'Erro ao carregar vídeos', status: 'error' });
     }
@@ -125,6 +131,7 @@ export default function VideosPage() {
       setEditingVideo(video);
       setVideoForm({
         title: video.title || '',
+        skillId: video.skillId != null ? String(video.skillId) : '',
         categoryId: video.categoryId ? String(video.categoryId) : '',
         embedUrl: video.embedUrl || '',
         thumbnailUrl: video.thumbnailUrl || '',
@@ -150,12 +157,14 @@ export default function VideosPage() {
     try {
       const payload = {
         title: videoForm.title.trim(),
+        skillId: videoForm.skillId ? Number(videoForm.skillId) : null,
+        global: !videoForm.skillId,
         categoryId: Number(videoForm.categoryId),
         embedUrl: videoForm.embedUrl.trim(),
         thumbnailUrl: videoForm.thumbnailUrl.trim() || undefined,
         durationLabel: videoForm.durationLabel.trim(),
         description: videoForm.description.trim() || undefined,
-        lessonId: videoForm.lessonId || null,
+        lessonId: videoForm.lessonId || '',
       };
 
       if (editingVideo) {
@@ -257,8 +266,11 @@ export default function VideosPage() {
       (vid.description && vid.description.toLowerCase().includes(searchText.toLowerCase()));
     
     const matchesCategory = selectedCategoryId === 'ALL' || String(vid.categoryId) === selectedCategoryId;
+    const matchesSkill = selectedSkillId === 'ALL'
+      || (selectedSkillId === 'GLOBAL' && vid.skillId == null)
+      || (selectedSkillId !== 'GLOBAL' && (vid.skillId == null || String(vid.skillId) === selectedSkillId));
 
-    return matchesText && matchesCategory;
+    return matchesText && matchesCategory && matchesSkill;
   });
 
   const videoColumns = [
@@ -266,6 +278,15 @@ export default function VideosPage() {
       key: 'title',
       header: 'Título',
       render: (item: VideoItem) => <Text fontSize="sm">{item.title}</Text>,
+    },
+    {
+      key: 'skillId',
+      header: 'Skill',
+      render: (item: VideoItem) => (
+        <Text fontSize="sm">
+          {item.skillId == null ? 'Todas as skills' : skills.find((skill) => skill.id === item.skillId)?.name || '—'}
+        </Text>
+      ),
     },
     {
       key: 'category',
@@ -362,6 +383,18 @@ export default function VideosPage() {
               />
             </InputGroup>
             <Select
+              maxW="220px"
+              value={selectedSkillId}
+              onChange={(e) => setSelectedSkillId(e.target.value)}
+              bg="white"
+            >
+              <option value="ALL">Todas as Skills</option>
+              <option value="GLOBAL">Somente vídeos globais</option>
+              {skills.map((skill) => (
+                <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
+              ))}
+            </Select>
+            <Select
               maxW="200px"
               value={selectedCategoryId}
               onChange={(e) => setSelectedCategoryId(e.target.value)}
@@ -413,6 +446,40 @@ export default function VideosPage() {
                 <Input value={videoForm.title} onChange={(e) => setVideoForm({ ...videoForm, title: e.target.value })} />
               </FormControl>
 
+              <FormControl>
+                <FormLabel>Skill</FormLabel>
+                <Select
+                  value={videoForm.skillId}
+                  onChange={(e) => setVideoForm({ ...videoForm, skillId: e.target.value, lessonId: '' })}
+                >
+                  <option value="">Todas as skills (global)</option>
+                  {skills.map((skill) => (
+                    <option key={skill.id} value={String(skill.id)}>{skill.name}</option>
+                  ))}
+                </Select>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Sem uma skill, o vídeo será exibido em todos os catálogos.
+                </Text>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel>Lição associada</FormLabel>
+                <Select
+                  value={videoForm.lessonId}
+                  onChange={(e) => setVideoForm({ ...videoForm, lessonId: e.target.value })}
+                  isDisabled={!videoForm.skillId}
+                >
+                  <option value="">
+                    {videoForm.skillId ? 'Nenhuma' : 'Selecione uma skill primeiro'}
+                  </option>
+                  {lessons
+                    .filter((lesson) => String(lesson.skillId) === videoForm.skillId)
+                    .map((lesson) => (
+                      <option key={lesson.id} value={lesson.id}>{lesson.title}</option>
+                    ))}
+                </Select>
+              </FormControl>
+
               <FormControl isRequired>
                 <FormLabel>Categoria</FormLabel>
                 <Select value={videoForm.categoryId} onChange={(e) => setVideoForm({ ...videoForm, categoryId: e.target.value })}>
@@ -461,18 +528,6 @@ export default function VideosPage() {
                 />
               </FormControl>
 
-              <FormControl>
-                <FormLabel>Lição associada</FormLabel>
-                <Select
-                  value={videoForm.lessonId}
-                  onChange={(e) => setVideoForm({ ...videoForm, lessonId: e.target.value })}
-                >
-                  <option value="">Nenhuma</option>
-                  {lessons.map((lesson) => (
-                    <option key={lesson.id} value={lesson.id}>{lesson.title}</option>
-                  ))}
-                </Select>
-              </FormControl>
             </VStack>
           </ModalBody>
           <ModalFooter>

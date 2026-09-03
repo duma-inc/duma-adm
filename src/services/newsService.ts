@@ -4,6 +4,7 @@ export interface NewsArticle {
   id: string;
   categoryId?: number | string;
   category?: string;
+  skillId: number;
   headline: string;
   summary: string;
   highlightedArticle: boolean;
@@ -17,6 +18,7 @@ export interface NewsArticle {
 export interface NewsArticlePayload {
   id?: string;
   categoryId: number;
+  skillId: number;
   headline: string;
   summary: string;
   highlightedArticle: boolean;
