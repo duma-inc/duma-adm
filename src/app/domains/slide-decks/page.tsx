@@ -43,6 +43,8 @@ import {
 import { uploadFile } from '@/services/fileService';
 import { lessonService, Lesson } from '@/services/lessonService';
 import { meetingService, Meeting } from '@/services/meetingService';
+import { skillService, Skill } from '@/services/skillService';
+import { stageService, Stage } from '@/services/stageService';
 
 const INITIAL_DECK_FORM = {
   title: '',
@@ -71,6 +73,8 @@ export default function SlideDecksPage() {
   const [decks, setDecks] = useState<SlideDeck[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [editingDeck, setEditingDeck] = useState<SlideDeck | null>(null);
@@ -79,6 +83,8 @@ export default function SlideDecksPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const [searchText, setSearchText] = useState('');
+  const [selectedSkillId, setSelectedSkillId] = useState('');
+  const [selectedStageId, setSelectedStageId] = useState('');
 
   const { isOpen: isFormOpen, onOpen: onFormOpen, onClose: onFormClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
@@ -87,14 +93,18 @@ export default function SlideDecksPage() {
   useEffect(() => { toastRef.current = toast; }, [toast]);
 
   const loadAll = useCallback(async () => {
-    const [decksRes, lessonsRes, meetingsRes] = await Promise.allSettled([
+    const [decksRes, lessonsRes, meetingsRes, skillsRes, stagesRes] = await Promise.allSettled([
       slideDeckService.getAll(),
       lessonService.getAll(),
       meetingService.getAll(),
+      skillService.getAll(),
+      stageService.getAll(),
     ]);
     setDecks(decksRes.status === 'fulfilled' ? decksRes.value : []);
     setLessons(lessonsRes.status === 'fulfilled' ? lessonsRes.value : []);
     setMeetings(meetingsRes.status === 'fulfilled' ? meetingsRes.value : []);
+    setSkills(skillsRes.status === 'fulfilled' ? skillsRes.value : []);
+    setStages(stagesRes.status === 'fulfilled' ? stagesRes.value : []);
 
     if (decksRes.status === 'rejected') {
       toastRef.current({ title: 'Erro ao carregar os decks', status: 'error' });
@@ -103,10 +113,33 @@ export default function SlideDecksPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  const filteredDecks = useMemo(
-    () => decks.filter((deck) => deck.title.toLowerCase().includes(searchText.toLowerCase())),
-    [decks, searchText]
+  const filteredStages = useMemo(
+    () => stages.filter((stage) => !selectedSkillId || String(stage.skillId) === selectedSkillId),
+    [stages, selectedSkillId]
   );
+
+  const filteredDecks = useMemo(() => {
+    const search = searchText.toLowerCase();
+
+    return decks.filter((deck) => {
+      const lesson = deck.lessonId
+        ? lessons.find((item) => String(item.id) === String(deck.lessonId))
+        : undefined;
+      const meeting = deck.meetingId
+        ? meetings.find((item) =>
+            [item.id, item.meetingId, item.uuid].some((id) => String(id) === String(deck.meetingId))
+          )
+        : undefined;
+      const skillId = meeting?.skillId ?? lesson?.skillId;
+      const stageId = meeting?.stageId ?? lesson?.stageId;
+
+      const matchesTitle = deck.title.toLowerCase().includes(search);
+      const matchesSkill = !selectedSkillId || String(skillId) === selectedSkillId;
+      const matchesStage = !selectedStageId || String(stageId) === selectedStageId;
+
+      return matchesTitle && matchesSkill && matchesStage;
+    });
+  }, [decks, lessons, meetings, searchText, selectedSkillId, selectedStageId]);
 
   const handleOpenForm = (deck?: SlideDeck) => {
     if (deck) {
@@ -254,7 +287,7 @@ export default function SlideDecksPage() {
         </Button>
       </Flex>
 
-      <HStack spacing={4} mb={6}>
+      <HStack spacing={4} mb={6} flexWrap="wrap">
         <InputGroup maxW="320px">
           <InputLeftElement pointerEvents="none">
             <Icon as={MdSearch} color="gray.400" />
@@ -266,6 +299,31 @@ export default function SlideDecksPage() {
             bg="white"
           />
         </InputGroup>
+        <Select
+          maxW="200px"
+          bg="white"
+          value={selectedSkillId}
+          onChange={(e) => {
+            setSelectedSkillId(e.target.value);
+            setSelectedStageId('');
+          }}
+        >
+          <option value="">Todas as skills</option>
+          {skills.map((skill) => (
+            <option key={skill.id} value={skill.id}>{skill.name}</option>
+          ))}
+        </Select>
+        <Select
+          maxW="200px"
+          bg="white"
+          value={selectedStageId}
+          onChange={(e) => setSelectedStageId(e.target.value)}
+        >
+          <option value="">Todos os stages</option>
+          {filteredStages.map((stage) => (
+            <option key={stage.id} value={stage.id}>{stage.name}</option>
+          ))}
+        </Select>
       </HStack>
 
       <DataTable
