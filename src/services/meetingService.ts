@@ -65,4 +65,5 @@ export const meetingService = {
   delete: async (id: number | string): Promise<void> => {
     await api.delete(`/meetings/${id}`);
   },
+  sendNotice: async (id: number | string): Promise<void> => { await api.post(`/meetings/${id}/send-notice`); },
 };

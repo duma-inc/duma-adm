@@ -40,7 +40,7 @@ import {
   useToast,
   VStack,
 } from '@chakra-ui/react';
-import { MdAdd, MdClose, MdDelete, MdFilterList, MdGroups, MdPeople } from 'react-icons/md';
+import { MdAdd, MdClose, MdDelete, MdFilterList, MdGroups, MdPeople, MdCampaign } from 'react-icons/md';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DataTable } from '@/components/ui/DataTable';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
@@ -451,6 +451,13 @@ export default function MeetingsPage() {
     } catch {
       toast({ title: 'Erro ao remover presença', status: 'error' });
     }
+  };
+
+  const handleSendNotice = async (meeting: MeetingRow) => {
+    const meetingId = resolveMeetingId(meeting);
+    if (!meetingId || !window.confirm('Enviar aviso imediato por e-mail, notificação e push aos alunos elegíveis?')) return;
+    try { await meetingService.sendNotice(meetingId); toast({ title: 'Aviso enviado para processamento', status: 'success' }); }
+    catch { toast({ title: 'Não foi possível enviar o aviso', status: 'error' }); }
   };
 
   const handleOpenBatch = () => {
@@ -905,14 +912,7 @@ export default function MeetingsPage() {
         columns={columns}
         data={filteredMeetings}
         actions={(meeting) => (
-          <IconButton
-            aria-label="Ver presentes"
-            icon={<MdPeople />}
-            size="sm"
-            colorScheme="green"
-            variant="ghost"
-            onClick={() => handleOpenAttendances(meeting)}
-          />
+          <HStack spacing={1}><IconButton aria-label="Enviar aviso imediato" icon={<MdCampaign />} size="sm" colorScheme="orange" variant="ghost" onClick={() => handleSendNotice(meeting)} /><IconButton aria-label="Ver presentes" icon={<MdPeople />} size="sm" colorScheme="green" variant="ghost" onClick={() => handleOpenAttendances(meeting)} /></HStack>
         )}
         onEdit={(meeting) => handleOpenForm(meeting)}
         onDelete={(meeting) => {
